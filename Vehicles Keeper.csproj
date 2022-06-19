@@ -45,9 +45,9 @@
       <HintPath>..\packages\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="ScriptHookVDotNet2, Version=2.10.8.0, Culture=neutral, processorArchitecture=AMD64">
+    <Reference Include="ScriptHookVDotNet2, Version=3.4.0.0, Culture=neutral, processorArchitecture=AMD64">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\packages\ScriptHookVDotNet2.dll</HintPath>
+      <HintPath>..\packages\ScriptHookVDotNet3.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -64,7 +64,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="JsonVehicleStorage.cs" />
-    <Compile Include="SaveableVehicle.cs" />
+    <Compile Include="VehicleData.cs" />
     <Compile Include="VehicleKeeper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="VehicleUtilities.cs" />

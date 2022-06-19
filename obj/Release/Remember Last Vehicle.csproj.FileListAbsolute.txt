@@ -1,6 +1,0 @@
-C:\Users\Joey\Google Drive\PC Files\GTA V Programming\Projects\Remember Last Vehicle\Remember Last Vehicle\bin\Release\Remember Last Vehicle.dll
-C:\Users\Joey\Google Drive\PC Files\GTA V Programming\Projects\Remember Last Vehicle\Remember Last Vehicle\bin\Release\Remember Last Vehicle.pdb
-C:\Users\Joey\Google Drive\PC Files\GTA V Programming\Projects\Remember Last Vehicle\Remember Last Vehicle\bin\Release\ScriptHookVDotNet2.dll
-C:\Users\Joey\Google Drive\PC Files\GTA V Programming\Projects\Remember Last Vehicle\Remember Last Vehicle\bin\Release\ScriptHookVDotNet2.xml
-C:\Users\Joey\Google Drive\PC Files\GTA V Programming\Projects\Remember Last Vehicle\Remember Last Vehicle\obj\Release\Remember Last Vehicle.dll
-C:\Users\Joey\Google Drive\PC Files\GTA V Programming\Projects\Remember Last Vehicle\Remember Last Vehicle\obj\Release\Remember Last Vehicle.pdb

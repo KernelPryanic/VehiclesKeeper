@@ -9,6 +9,12 @@ using GTA.Native;
 using NativeUI;
 
 namespace VehicleKeeper {
+    public static class Logger {
+        public static void Log(object message) {
+            File.AppendAllText("VehicleKeeper.log", DateTime.Now + " : " + message + Environment.NewLine);
+        }
+    }
+
     public class VehicleKeeper : Script {
         ScriptSettings config;
         int vehicleLimit;
@@ -19,9 +25,8 @@ namespace VehicleKeeper {
         MenuPool menuPool;
         UIMenu mainMenu;
         UIMenu vehicleMenu;
-        bool started = false;
         int period = 0;
-        List<SaveableVehicle> spawnedVehicles = new List<SaveableVehicle>();
+        List<VehicleData> spawnedVehicles = new List<VehicleData>();
         Vehicle lastVehicle = null;
 
         public VehicleKeeper() {
@@ -33,8 +38,6 @@ namespace VehicleKeeper {
             KeyDown += OnKeyDown;
             KeyUp += OnKeyUp;
 
-            Interval = 10;
-
             config = ScriptSettings.Load(@"./scripts/VehicleKeeper.ini");
             vehicleLimit = config.GetValue("Configuration", "Vehicle limit", 8);
             saveKey = config.GetValue("Configuration", "Save key", Keys.IMENonconvert);
@@ -43,21 +46,17 @@ namespace VehicleKeeper {
 
             string basePath = config.GetValue("Configuration", "vehiclePersistencePath", @"./scripts/VehicleKeeper");
 
-            //Initialiseer het pad in de json klasse
             JsonVehicleStorage.InitializeBasePath(basePath);
+
+            // LoadVehicles();
         }
 
         public void OnTick(object sender, EventArgs eventArgs) {
-            if (!started) {
-                started = true;
-                LoadVehicles();
-            }
-
             if (menuPool != null && menuPool.IsAnyMenuOpen()) {
                 menuPool.ProcessMenus(); // Loads all the menus
             }
 
-            if (period < 5) {
+            if (period < 10) {
                 period++;
                 return;
             } else {
@@ -66,31 +65,30 @@ namespace VehicleKeeper {
 
             if (lastVehicle != null && Game.Player != null &&
                 lastVehicle != Game.Player.Character.CurrentVehicle &&
-                !Game.Player.Character.IsGettingIntoAVehicle &&
-                World.GetZoneName(Game.Player.Character.Position) != "San Andreas"
+                !Game.Player.Character.IsGettingIntoVehicle &&
+                !Game.Player.Character.IsJumpingOutOfVehicle &&
+                World.GetZoneDisplayName(Game.Player.Character.Position) != "San Andreas"
             ) {
-                SaveableVehicle sv = VehicleUtilities.CreateInfo(lastVehicle);
-                SaveableVehicle[] savedVehicles = JsonVehicleStorage.GetVehicles();
-                if (savedVehicles.Contains(sv)) {
-                    UnsaveVehicle(sv, lastVehicle);
-                    SaveVehicle(sv, lastVehicle);
+                VehicleData vd = VehicleUtilities.CreateInfo(lastVehicle);
+                VehicleData[] savedVehicles = JsonVehicleStorage.GetVehicles();
+                if (savedVehicles.Contains(vd)) {
+                    UnsaveVehicle(vd, lastVehicle);
+                    SaveVehicle(vd, lastVehicle);
                 }
             }
 
             for (int i = 0; i < spawnedVehicles.Count; i++) {
-                Vehicle v = new Vehicle(spawnedVehicles[i].Handle);
-                if (v.Health == 0 || v.IsDead) {
-                    DespawnVehicle(spawnedVehicles[i], v);
-                    UI.Notify($"Vehicle {v.DisplayName} is destroyed");
+                Vehicle v = (Vehicle) Entity.FromHandle(spawnedVehicles[i].Handle);
+                if (v.IsConsideredDestroyed) {
+                    GTA.UI.Notification.Show($"Vehicle {v.DisplayName} is destroyed");
+                    DespawnVehicle(v, spawnedVehicles[i]);
                 }
             }
 
             if (Game.Player != null && Game.Player.Character.IsInVehicle() &&
-                World.GetZoneName(Game.Player.Character.Position) != "San Andreas"
+                World.GetZoneDisplayName(Game.Player.Character.Position) != "San Andreas"
             ) {
                 lastVehicle = Game.Player.Character.CurrentVehicle;
-            } else {
-                lastVehicle = null;
             }
         }
 
@@ -105,103 +103,103 @@ namespace VehicleKeeper {
         void OnListItemSelect(UIMenu sender, UIMenuItem item, int index) {
             UIMenuListItem listItem = (UIMenuListItem) item;
             if ((string) listItem.Items[listItem.Index] == "Spawn") {
-                SaveableVehicle sv = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
-                if (sv == null) {
-                    UI.Notify($"This vehicle doesn't exist in your list");
+                VehicleData vd = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
+                if (vd == null) {
+                    GTA.UI.Notification.Show($"This vehicle doesn't exist in your list");
                     return;
                 }
 
-                if (!spawnedVehicles.Contains(sv)) {
-                    if (SpawnVehicle(sv)) {
-                        UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} spawned successully");
+                if (!spawnedVehicles.Contains(vd)) {
+                    if (SpawnVehicle(vd)) {
+                        GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} spawned successully");
                     }
                 } else {
-                    UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} is already spawned");
+                    GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} is already spawned");
                 }
             }
             if ((string) listItem.Items[listItem.Index] == "Despawn") {
-                SaveableVehicle sv = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
-                if (sv == null) {
-                    UI.Notify($"This vehicle doesn't exist in your list");
+                VehicleData vd = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
+                if (vd == null) {
+                    GTA.UI.Notification.Show($"This vehicle doesn't exist in your list");
                     return;
                 }
 
-                if (!spawnedVehicles.Contains(sv)) {
-                    UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} is not spawned");
+                if (!spawnedVehicles.Contains(vd)) {
+                    GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} is not spawned");
                 } else {
                     Vehicle v;
-                    (v, sv) = GetSpawnedIfPossible(sv);
-                    if (DespawnVehicle(sv, v)) {
-                        UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} despawned successully");
+                    (v, vd) = GetSpawnedIfPossible(vd);
+                    if (DespawnVehicle(v, vd)) {
+                        GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} despawned successully");
                     }
                 }
             }
             if ((string) listItem.Items[listItem.Index] == "Save") {
-                SaveableVehicle sv = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
-                if (sv == null) {
-                    UI.Notify($"This vehicle doesn't exist in your list");
+                VehicleData vd = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
+                if (vd == null) {
+                    GTA.UI.Notification.Show($"This vehicle doesn't exist in your list");
                     return;
                 }
 
-                if (!spawnedVehicles.Contains(sv)) {
-                    UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} is not spawned");
+                if (!spawnedVehicles.Contains(vd)) {
+                    GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} is not spawned");
                     return;
                 }
 
                 Vehicle v;
-                (v, sv) = GetSpawnedIfPossible(sv);
-                UnsaveVehicle(sv, v);
-                if (SaveVehicle(sv, v)) {
-                    UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} has been overridden");
+                (v, vd) = GetSpawnedIfPossible(vd);
+                UnsaveVehicle(vd, v);
+                if (SaveVehicle(vd, v)) {
+                    GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} has been overridden");
                 } else {
-                    UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} can't be overridden");
+                    GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} can't be overridden");
                 }
             }
             if ((string) listItem.Items[listItem.Index] == "Unsave") {
-                SaveableVehicle sv = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
-                if (sv == null) {
-                    UI.Notify($"This vehicle doesn't exist in your list");
+                VehicleData vd = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
+                if (vd == null) {
+                    GTA.UI.Notification.Show($"This vehicle doesn't exist in your list");
                     return;
                 }
                 Vehicle v;
-                (v, sv) = GetSpawnedIfPossible(sv);
+                (v, vd) = GetSpawnedIfPossible(vd);
 
-                if (UnsaveVehicle(sv, v)) {
-                    UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} has been unsaved");
+                if (UnsaveVehicle(vd, v)) {
+                    GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} has been unsaved");
                 } else {
-                    UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} can't be unsaved");
+                    GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} can't be unsaved");
                 }
             }
             if ((string) listItem.Items[listItem.Index] == "Set spawn location") {
-                Vector3 waypoint = World.GetWaypointPosition();
+                Vector3 waypoint = World.WaypointPosition;
                 if (waypoint.Length() == 0) {
-                    UI.Notify("Please set waypoint to identify target position");
+                    GTA.UI.Notification.Show("Please set waypoint to identify target position");
                 } else {
-                    SaveableVehicle sv = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
-                    if (sv == null) {
-                        UI.Notify($"This vehicle doesn't exist in your list");
+                    VehicleData vd = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(listItem.Text));
+                    if (vd == null) {
+                        GTA.UI.Notification.Show($"This vehicle doesn't exist in your list");
                         return;
                     }
 
                     Vehicle v;
-                    (v, sv) = GetSpawnedIfPossible(sv);
-                    sv.Position = waypoint;
-                    UnsaveVehicle(sv, v);
-                    SaveVehicle(sv, v);
-                    UI.Notify($"Spawn position was refreshed for {sv.VehicleName} {sv.NumberPlate.Trim()}");
+                    (v, vd) = GetSpawnedIfPossible(vd);
+                    vd.Position = waypoint;
+                    UnsaveVehicle(vd, v);
+                    SaveVehicle(vd, v);
+                    GTA.UI.Notification.Show($"Spawn position was refreshed for {vd.VehicleName} {vd.NumberPlate.Trim()}");
                 }
             }
         }
 
         public void OnKeyDown(object sender, KeyEventArgs e) {
             if (e.KeyCode == menuKey && !menuPool.IsAnyMenuOpen()) {
-                SaveableVehicle[] savedVehicles = JsonVehicleStorage.GetVehicles();
+                VehicleData[] savedVehicles = JsonVehicleStorage.GetVehicles();
                 mainMenu.Visible = !mainMenu.Visible;
                 vehicleMenu.MenuItems.Clear();
 
-                foreach (SaveableVehicle sv in savedVehicles) {
+                foreach (VehicleData vd in savedVehicles) {
                     if (vehicleMenu.MenuItems.Count <= savedVehicles.Count()) {
-                        UIMenuListItem vehicleItem = new UIMenuListItem($"{sv.VehicleName} {sv.NumberPlate.Trim()}",
+                        UIMenuListItem vehicleItem = new UIMenuListItem($"{vd.VehicleName} {vd.NumberPlate.Trim()}",
                             new List<object> { "Spawn", "Despawn", "Save", "Unsave", "Set spawn location" }, 0);
                         vehicleMenu.AddItem(vehicleItem);
                     }
@@ -251,67 +249,77 @@ namespace VehicleKeeper {
                 Function.Call(Hash.SET_BLIP_COLOUR, blip, 7);
                 Function.Call(Hash.SET_BLIP_PRIORITY, blip, 13);
             } catch (Exception e) {
-                UI.Notify(e.Message);
+                Logger.Log(e.Message);
+                GTA.UI.Notification.Show(e.Message);
             }
         }
 
-        (Vehicle, SaveableVehicle) GetSpawnedIfPossible(SaveableVehicle sv) {
-            int spawned = spawnedVehicles.IndexOf(sv);
+        (Vehicle, VehicleData) GetSpawnedIfPossible(VehicleData vd) {
+            int spawned = spawnedVehicles.IndexOf(vd);
             if (spawned > -1) {
-                return (new Vehicle(spawnedVehicles[spawned].Handle), spawnedVehicles[spawned]);
+                return ((Vehicle) Entity.FromHandle(spawnedVehicles[spawned].Handle), spawnedVehicles[spawned]);
             }
 
-            return (new Vehicle(sv.Handle), sv);
+            return ((Vehicle) Entity.FromHandle(vd.Handle), vd);
         }
 
-        bool SaveVehicle(SaveableVehicle sv, Vehicle v) {
+        bool SaveVehicle(VehicleData vd, Vehicle v) {
             try {
                 SetBlipOnVehicle(v);
                 v.IsPersistent = true;
-                spawnedVehicles.Add(sv);
-                JsonVehicleStorage.SaveVehicle(sv);
+                spawnedVehicles.Add(vd);
+                JsonVehicleStorage.SaveVehicle(vd);
             } catch (Exception e) {
-                UI.Notify(e.Message);
+                Logger.Log(e.Message);
+                GTA.UI.Notification.Show(e.Message);
                 return false;
             }
 
             return true;
         }
 
-        bool UnsaveVehicle(SaveableVehicle sv, Vehicle v) {
+        bool UnsaveVehicle(VehicleData vd, Vehicle v) {
             try {
                 v.IsPersistent = false;
-                v.CurrentBlip.Remove();
-                spawnedVehicles.Remove(sv);
-                JsonVehicleStorage.RemoveVehicle(sv);
+                foreach (Blip b in v.AttachedBlips) {
+                    b.Delete();
+                }
+                spawnedVehicles.Remove(vd);
+                JsonVehicleStorage.RemoveVehicle(vd);
             } catch (Exception e) {
-                UI.Notify(e.Message);
+                Logger.Log(e.Message);
+                GTA.UI.Notification.Show(e.Message);
                 return false;
             }
 
             return true;
         }
 
-        bool DespawnVehicle(SaveableVehicle sv, Vehicle v) {
+        bool DespawnVehicle(Vehicle v, VehicleData vd) {
             try {
                 v.IsPersistent = false;
-                v.CurrentBlip.Remove();
-                spawnedVehicles.Remove(sv);
+                foreach (Blip b in v.AttachedBlips) {
+                    b.Delete();
+                }
                 v.Delete();
+                spawnedVehicles.Remove(vd);
+                lastVehicle = null;
             } catch (Exception e) {
-                UI.Notify(e.Message);
+                Logger.Log(e.Message);
+                GTA.UI.Notification.Show(e.Message);
                 return false;
             }
 
             return true;
         }
 
-        bool SpawnVehicle(SaveableVehicle sv) {
+        bool SpawnVehicle(VehicleData vd) {
             Vehicle vehicle = null;
             try {
-                vehicle = VehicleUtilities.CreateVehicleFromData(ref sv);
+                vehicle = VehicleUtilities.CreateVehicleFromData(ref vd);
             } catch (Exception e) {
-                UI.Notify(e.Message);
+                Logger.Log(e.Message);
+                GTA.UI.Notification.Show(e.Message);
                 return false;
             }
 
@@ -320,18 +328,19 @@ namespace VehicleKeeper {
             }
 
             SetBlipOnVehicle(vehicle);
-            spawnedVehicles.Add(sv);
+            spawnedVehicles.Add(vd);
             return true;
         }
 
         void LoadVehicles() {
-            SaveableVehicle[] jsonVehicles = new SaveableVehicle[0];
+            VehicleData[] jsonVehicles = new VehicleData[0];
 
             try {
                 //Haal opgeslagen auto's op
                 jsonVehicles = JsonVehicleStorage.GetVehicles();
             } catch (Exception e) {
-                UI.Notify(e.Message);
+                Logger.Log(e.Message);
+                GTA.UI.Notification.Show(e.Message);
             }
 
             try {
@@ -339,36 +348,37 @@ namespace VehicleKeeper {
                     if (!spawnedVehicles.Contains(jsonVehicles[i])) {
                         SpawnVehicle(jsonVehicles[i]);
                     } else {
-                        UI.Notify($"Vehicle {jsonVehicles[i].VehicleName} {jsonVehicles[i].NumberPlate.Trim()} is already loaded");
+                        GTA.UI.Notification.Show($"Vehicle {jsonVehicles[i].VehicleName} {jsonVehicles[i].NumberPlate.Trim()} is already loaded");
                     }
                 }
             } catch (Exception e) {
-                UI.Notify(e.Message);
+                Logger.Log(e.Message);
+                GTA.UI.Notification.Show(e.Message);
             }
         }
 
         void UnsaveVehicles() {
-            SaveableVehicle[] savedVehicles = JsonVehicleStorage.GetVehicles();
+            VehicleData[] savedVehicles = JsonVehicleStorage.GetVehicles();
             for (int i = 0; i < savedVehicles.Count(); i++) {
-                SaveableVehicle sv = savedVehicles[i];
-                Vehicle v = new Vehicle(sv.Handle);
+                VehicleData vd = savedVehicles[i];
+                Vehicle v = (Vehicle) Entity.FromHandle(vd.Handle);
 
                 // Check if vehicle is spawned to remove persistency and blip correctly
-                (v, sv) = GetSpawnedIfPossible(sv);
-                UnsaveVehicle(sv, v);
+                (v, vd) = GetSpawnedIfPossible(vd);
+                UnsaveVehicle(vd, v);
             }
 
-            UI.Notify("All vehicles have been unsaved");
+            GTA.UI.Notification.Show("All vehicles have been unsaved");
         }
 
         void DespawnVehicles() {
             while (spawnedVehicles.Count > 0) {
-                SaveableVehicle sv = spawnedVehicles[spawnedVehicles.Count - 1];
-                Vehicle v = new Vehicle(sv.Handle);
-                DespawnVehicle(sv, v);
+                VehicleData vd = spawnedVehicles[spawnedVehicles.Count - 1];
+                Vehicle v = (Vehicle) Entity.FromHandle(vd.Handle);
+                DespawnVehicle(v, vd);
             }
 
-            UI.Notify("All vehicles have been removed");
+            GTA.UI.Notification.Show("All vehicles have been despawned");
         }
 
         void SaveCurrentVehicle() {
@@ -376,22 +386,22 @@ namespace VehicleKeeper {
 
             if (player.IsInVehicle()) {
                 Vehicle currentVeh = player.CurrentVehicle;
-                SaveableVehicle sv = VehicleUtilities.CreateInfo(currentVeh);
-                SaveableVehicle[] savedVehicles = JsonVehicleStorage.GetVehicles();
-                if (!savedVehicles.Contains(sv)) {
+                VehicleData vd = VehicleUtilities.CreateInfo(currentVeh);
+                VehicleData[] savedVehicles = JsonVehicleStorage.GetVehicles();
+                if (!savedVehicles.Contains(vd)) {
                     if (savedVehicles.Count() < vehicleLimit) {
-                        SaveVehicle(sv, currentVeh);
-                        UI.Notify($"Vehicle {currentVeh.DisplayName} {currentVeh.NumberPlate.Trim()} saved");
+                        SaveVehicle(vd, currentVeh);
+                        GTA.UI.Notification.Show($"Vehicle {currentVeh.DisplayName} {currentVeh.Mods.LicensePlate.Trim()} saved");
                     } else {
-                        UI.Notify($"You can't save more than {vehicleLimit} vehicles");
+                        GTA.UI.Notification.Show($"You can't save more than {vehicleLimit} vehicles");
                     }
                 } else {
-                    UnsaveVehicle(sv, currentVeh);
-                    SaveVehicle(sv, currentVeh);
-                    UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} has been overridden");
+                    UnsaveVehicle(vd, currentVeh);
+                    SaveVehicle(vd, currentVeh);
+                    GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} has been overridden");
                 }
             } else if (player.IsOnFoot) {
-                UI.Notify("Player is not in a vehicle");
+                GTA.UI.Notification.Show("Player is not in a vehicle");
             }
         }
 
@@ -400,15 +410,15 @@ namespace VehicleKeeper {
 
             if (player.IsInVehicle()) {
                 Vehicle currentVeh = player.CurrentVehicle;
-                SaveableVehicle sv = VehicleUtilities.CreateInfo(currentVeh);
-                SaveableVehicle[] savedVehicles = JsonVehicleStorage.GetVehicles();
+                VehicleData vd = VehicleUtilities.CreateInfo(currentVeh);
+                VehicleData[] savedVehicles = JsonVehicleStorage.GetVehicles();
 
-                if (savedVehicles.Contains(sv)) {
-                    UnsaveVehicle(sv, currentVeh);
-                    UI.Notify($"Vehicle {sv.VehicleName} {sv.NumberPlate.Trim()} is unsaved");
+                if (savedVehicles.Contains(vd)) {
+                    UnsaveVehicle(vd, currentVeh);
+                    GTA.UI.Notification.Show($"Vehicle {vd.VehicleName} {vd.NumberPlate.Trim()} is unsaved");
                 }
             } else if (player.IsOnFoot) {
-                UI.Notify("Player is not in a vehicle");
+                GTA.UI.Notification.Show("Player is not in a vehicle");
             }
         }
     }
