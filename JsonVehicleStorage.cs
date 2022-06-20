@@ -7,7 +7,7 @@ using Newtonsoft.Json;
 namespace VehicleKeeper {
     public static class JsonVehicleStorage {
         private static string BasePath = string.Empty;
-        private static string FileName = "saved-vehicles.json";
+        private static string FileName = "preserved-vehicles.json";
 
         public static void InitializeBasePath(string path) {
             if (!Directory.Exists(path)) {
@@ -20,7 +20,9 @@ namespace VehicleKeeper {
         public static void SaveVehicle(VehicleData vd) {
             ThrowExceptionWhenBasePathDoesNotExist();
             List<VehicleData> vehicles = GetVehicles().ToList();
-            vehicles.Add(vd);
+            if (!vehicles.Contains(vd)) {
+                vehicles.Add(vd);
+            }
 
             string json = JsonConvert.SerializeObject(vehicles, new JsonSerializerSettings {
                 ReferenceLoopHandling = ReferenceLoopHandling.Ignore
@@ -58,7 +60,8 @@ namespace VehicleKeeper {
                     ReferenceLoopHandling = ReferenceLoopHandling.Ignore
                 });
                 return Array.Find(allVehicles, x => x.ID == ID);
-            } catch {
+            } catch (Exception e) {
+                Logger.LogError(e);
                 return null;
             }
         }
@@ -70,7 +73,8 @@ namespace VehicleKeeper {
                 return JsonConvert.DeserializeObject<VehicleData[]>(json, new JsonSerializerSettings {
                     ReferenceLoopHandling = ReferenceLoopHandling.Ignore
                 });
-            } catch {
+            } catch (Exception e) {
+                Logger.LogError(e);
                 return new VehicleData[0];
             }
         }
