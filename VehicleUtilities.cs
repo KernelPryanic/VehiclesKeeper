@@ -37,13 +37,13 @@ namespace VehicleKeeper {
 
             // General
             VehicleData.DirtLevel = vehicle.DirtLevel;
-            VehicleData.BodyHealth = vehicle.BodyHealth;
+            VehicleData.BodyHealth = Math.Max(vehicle.BodyHealth, (float) 20);
             VehicleData.Livery = vehicle.Mods.Livery;
             VehicleData.WindowTint = vehicle.Mods.WindowTint;
             VehicleData.RoofState = vehicle.RoofState;
             VehicleData.WheelType = vehicle.Mods.WheelType;
 
-            VehicleData.HeliEngineHealth = vehicle.HeliEngineHealth;
+            VehicleData.HeliEngineHealth = Math.Max(vehicle.HeliEngineHealth, (float) 20);
 
             // Radio
             // if (Game.Player.Character.IsInVehicle()) {
@@ -56,7 +56,7 @@ namespace VehicleKeeper {
             VehicleData.Rotation = vehicle.Rotation;
 
             // Engine
-            VehicleData.EngineHealth = vehicle.EngineHealth;
+            VehicleData.EngineHealth = Math.Max(vehicle.EngineHealth, (float) 20);
             VehicleData.IsEngineRunning = vehicle.IsEngineRunning;
             VehicleData.IsDriveable = vehicle.IsDriveable;
 
@@ -89,7 +89,7 @@ namespace VehicleKeeper {
             // VehicleData.RearBumperBrokenOff = vehicle.IsRearBumperBrokenOff;
 
             // Fuel/Oil
-            VehicleData.PetrolTankHealth = vehicle.PetrolTankHealth;
+            VehicleData.PetrolTankHealth = Math.Max(vehicle.PetrolTankHealth, (float) 750);
             VehicleData.FuelLevel = vehicle.FuelLevel;
             VehicleData.OilLevel = vehicle.OilLevel;
 
@@ -110,7 +110,9 @@ namespace VehicleKeeper {
                     VehicleData.Windows.Add(
                         new VehicleWindowData(vehicle.Windows[window].Index, vehicle.Windows[window].IsIntact)
                     );
-                } catch { }
+                } catch (Exception e) {
+                    Logger.LogError(e.ToString().ToString());
+                }
             }
 
             // // Doors
@@ -119,20 +121,26 @@ namespace VehicleKeeper {
                     VehicleData.Doors.Add(
                         new VehicleDoorData(vehicle.Doors[door].Index, vehicle.Doors[door].IsBroken)
                     );
-                } catch { }
+                } catch (Exception e) {
+                    Logger.LogError(e.ToString().ToString());
+                }
             }
 
             // Wheels
             foreach (VehicleWheelBoneId wheel in Wheels) {
-                try {
-                    VehicleData.Wheels.Add(
-                        new VehicleWheelData(
-                            wheel,
-                            vehicle.Wheels[wheel].Health, vehicle.Wheels[wheel].TireHealth,
-                            vehicle.Wheels[wheel].IsBursted, vehicle.Wheels[wheel].IsPunctured
-                        )
-                    );
-                } catch { }
+                if (wheel > 0) {
+                    try {
+                        VehicleData.Wheels.Add(
+                            new VehicleWheelData(
+                                wheel,
+                                vehicle.Wheels[wheel].Health, vehicle.Wheels[wheel].TireHealth,
+                                vehicle.Wheels[wheel].IsBursted, vehicle.Wheels[wheel].IsPunctured
+                            )
+                        );
+                    } catch (Exception e) {
+                        Logger.LogError(e.ToString().ToString());
+                    }
+                }
             }
 
             // Neon
@@ -148,7 +156,9 @@ namespace VehicleKeeper {
                     VehicleData.Mods.Add(
                         new VehicleModData(mod, vehicle.Mods[mod].Index, vehicle.Mods[mod].Variation)
                     );
-                } catch { }
+                } catch (Exception e) {
+                    Logger.LogError(e.ToString().ToString());
+                }
             }
 
             // Toggle mods
@@ -157,7 +167,9 @@ namespace VehicleKeeper {
                     VehicleData.ToggleMods.Add(
                         new VehicleToggleModData(mod, vehicle.Mods[mod].IsInstalled)
                     );
-                } catch { }
+                } catch (Exception e) {
+                    Logger.LogError(e.ToString().ToString());
+                }
             }
 
             VehicleData.ID = GetHashString($"{VehicleData.VehicleName} {VehicleData.LicensePlate.Trim()}");
@@ -197,7 +209,7 @@ namespace VehicleKeeper {
             if (data.IsEngineRunning) {
                 Function.Call(Hash.SET_VEHICLE_ENGINE_ON, vehicle, true, true, false);
             }
-            vehicle.IsDriveable = data.IsDriveable;
+            vehicle.IsDriveable = true;
 
             // Coloring
             vehicle.Mods.PrimaryColor = data.PrimaryColor;
@@ -249,7 +261,9 @@ namespace VehicleKeeper {
                     if (!window.IsIntact) {
                         vehicle.Windows[window.Index].Smash();
                     }
-                } catch { }
+                } catch (Exception e) {
+                    Logger.LogError(e.ToString().ToString());
+                }
             }
 
             // Doors
@@ -258,7 +272,9 @@ namespace VehicleKeeper {
                     if (door.IsBroken) {
                         vehicle.Doors[door.Index].Break();
                     }
-                } catch { }
+                } catch (Exception e) {
+                    Logger.LogError(e.ToString().ToString());
+                }
             }
 
             // Wheels
@@ -272,7 +288,9 @@ namespace VehicleKeeper {
                         vehicle.Wheels[wheel.Index].Health = wheel.Health;
                         vehicle.Wheels[wheel.Index].TireHealth = wheel.TireHealth;
                     }
-                } catch { }
+                } catch (Exception e) {
+                    Logger.LogError(e.ToString().ToString());
+                }
             }
 
             // Neon status
@@ -285,14 +303,18 @@ namespace VehicleKeeper {
                 try {
                     vehicle.Mods[mod.Type].Index = mod.Index;
                     vehicle.Mods[mod.Type].Variation = mod.Variation;
-                } catch { }
+                } catch (Exception e) {
+                    Logger.LogError(e.ToString().ToString());
+                }
             }
 
             // Toggle mods
             foreach (VehicleToggleModData mod in data.ToggleMods) {
                 try {
                     vehicle.Mods[mod.Type].IsInstalled = mod.IsInstalled;
-                } catch { }
+                } catch (Exception e) {
+                    Logger.LogError(e.ToString().ToString());
+                }
             }
 
             // // Bumpers
