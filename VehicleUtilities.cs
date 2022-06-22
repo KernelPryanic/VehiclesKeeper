@@ -8,9 +8,12 @@ using GTA.Native;
 
 namespace VehicleKeeper {
     public static class VehicleUtilities {
-        static VehicleNeonLight[] neons = (VehicleNeonLight[]) Enum.GetValues(typeof(VehicleNeonLight));
-        static VehicleMod[] mods = (VehicleMod[]) Enum.GetValues(typeof(VehicleMod));
-        static VehicleToggleMod[] toggleMods = (VehicleToggleMod[]) Enum.GetValues(typeof(VehicleToggleMod));
+        static VehicleWindowIndex[] Windows = (VehicleWindowIndex[]) Enum.GetValues(typeof(VehicleWindowIndex));
+        static VehicleDoorIndex[] Doors = (VehicleDoorIndex[]) Enum.GetValues(typeof(VehicleDoorIndex));
+        static VehicleWheelBoneId[] Wheels = (VehicleWheelBoneId[]) Enum.GetValues(typeof(VehicleWheelBoneId));
+        static VehicleNeonLight[] Neon = (VehicleNeonLight[]) Enum.GetValues(typeof(VehicleNeonLight));
+        static VehicleModType[] Mods = (VehicleModType[]) Enum.GetValues(typeof(VehicleModType));
+        static VehicleToggleModType[] ToggleMods = (VehicleToggleModType[]) Enum.GetValues(typeof(VehicleToggleModType));
 
         public static byte[] GetHash(string input) {
             HashAlgorithm algorithm = SHA256.Create();
@@ -25,229 +28,291 @@ namespace VehicleKeeper {
             return sb.ToString();
         }
 
-        public static SaveableVehicle CreateInfo(Vehicle vehicle) {
-            SaveableVehicle saveableVehicle = new SaveableVehicle();
+        public static VehicleData CreateInfo(Vehicle vehicle) {
+            VehicleData VehicleData = new VehicleData();
 
-            saveableVehicle.Handle = vehicle.Handle;
-            saveableVehicle.VehicleName = vehicle.DisplayName;
-            saveableVehicle.Vehicle = (uint) vehicle.Model.Hash;
+            VehicleData.Handle = vehicle.Handle;
+            VehicleData.VehicleName = vehicle.DisplayName;
+            VehicleData.Vehicle = (uint) vehicle.Model.Hash;
 
             // General
-            saveableVehicle.DirtLevel = vehicle.DirtLevel;
-            saveableVehicle.BodyHealth = vehicle.BodyHealth;
-            saveableVehicle.Livery = vehicle.Livery;
-            saveableVehicle.WindowTint = vehicle.WindowTint;
-            saveableVehicle.RoofState = vehicle.RoofState;
-            saveableVehicle.WheelType = vehicle.WheelType;
+            VehicleData.DirtLevel = vehicle.DirtLevel;
+            VehicleData.BodyHealth = vehicle.BodyHealth;
+            VehicleData.Livery = vehicle.Mods.Livery;
+            VehicleData.WindowTint = vehicle.Mods.WindowTint;
+            VehicleData.RoofState = vehicle.RoofState;
+            VehicleData.WheelType = vehicle.Mods.WheelType;
 
-            // Position
-            saveableVehicle.Position = vehicle.Position;
-            saveableVehicle.Rotation = vehicle.Rotation;
+            VehicleData.HeliEngineHealth = vehicle.HeliEngineHealth;
+
+            // Radio
+            // if (Game.Player.Character.IsInVehicle()) {
+            //     VehicleData.RadioStation = (RadioStation) Function.Call<int>(Hash.GET_PLAYER_RADIO_STATION_INDEX);
+            //     GTA.UI.Notification.Show(VehicleData.RadioStation.ToString());
+            // }
+
+            // Location
+            VehicleData.Position = vehicle.Position;
+            VehicleData.Rotation = vehicle.Rotation;
 
             // Engine
-            saveableVehicle.EngineHealth = vehicle.EngineHealth;
-            saveableVehicle.EngineRunning = vehicle.EngineRunning;
-            saveableVehicle.IsDriveable = vehicle.IsDriveable;
+            VehicleData.EngineHealth = vehicle.EngineHealth;
+            VehicleData.IsEngineRunning = vehicle.IsEngineRunning;
+            VehicleData.IsDriveable = vehicle.IsDriveable;
 
-            // Colors
-            saveableVehicle.PrimaryColor = vehicle.PrimaryColor;
-            saveableVehicle.SecondaryColor = vehicle.SecondaryColor;
-            saveableVehicle.DashboardColor = vehicle.DashboardColor;
-            saveableVehicle.PearlescentColor = vehicle.PearlescentColor;
-            saveableVehicle.RimColor = vehicle.RimColor;
-            saveableVehicle.TrimColor = vehicle.TrimColor;
-            saveableVehicle.CustomPrimaryColor = vehicle.CustomPrimaryColor;
-            saveableVehicle.CustomSecondaryColor = vehicle.CustomSecondaryColor;
-            saveableVehicle.TireSmokeColor = vehicle.TireSmokeColor;
-            saveableVehicle.NeonLightsColor = vehicle.NeonLightsColor;
-            saveableVehicle.ColorCombination = vehicle.ColorCombination;
+            // Coloring
+            VehicleData.PrimaryColor = vehicle.Mods.PrimaryColor;
+            VehicleData.SecondaryColor = vehicle.Mods.SecondaryColor;
+            VehicleData.DashboardColor = vehicle.Mods.DashboardColor;
+            VehicleData.PearlescentColor = vehicle.Mods.PearlescentColor;
+            VehicleData.RimColor = vehicle.Mods.RimColor;
+            VehicleData.TrimColor = vehicle.Mods.TrimColor;
+            VehicleData.CustomPrimaryColor = vehicle.Mods.CustomPrimaryColor;
+            VehicleData.CustomSecondaryColor = vehicle.Mods.CustomSecondaryColor;
+            VehicleData.TireSmokeColor = vehicle.Mods.TireSmokeColor;
+            VehicleData.NeonLightsColor = vehicle.Mods.NeonLightsColor;
+            VehicleData.ColorCombination = vehicle.Mods.ColorCombination;
 
-            // Number plate
-            saveableVehicle.NumberPlateType = vehicle.NumberPlateType;
-            saveableVehicle.NumberPlate = vehicle.NumberPlate;
+            // License plate
+            VehicleData.LicensePlate = vehicle.Mods.LicensePlate;
+            VehicleData.LicensePlateStyle = vehicle.Mods.LicensePlateStyle;
 
-            // Lights status
-            saveableVehicle.LeftHeadlightBroken = vehicle.LeftHeadLightBroken;
-            saveableVehicle.RightHeadlightBroken = vehicle.RightHeadLightBroken;
-            saveableVehicle.LightsOn = vehicle.LightsOn;
-            saveableVehicle.HighBeamsOn = vehicle.HighBeamsOn;
-            saveableVehicle.SearchLightOn = vehicle.SearchLightOn;
+            // Lights
+            VehicleData.IsLeftHeadlightBroken = vehicle.IsLeftHeadLightBroken;
+            VehicleData.IsRightHeadlightBroken = vehicle.IsRightHeadLightBroken;
+            VehicleData.AreLightsOn = vehicle.AreLightsOn;
+            VehicleData.AreHighBeamsOn = vehicle.AreHighBeamsOn;
+            VehicleData.IsSearchLightOn = vehicle.IsSearchLightOn;
 
-            // Bumpers status
-            saveableVehicle.FrontBumperBrokenOff = vehicle.IsFrontBumperBrokenOff;
-            saveableVehicle.RearBumperBrokenOff = vehicle.IsRearBumperBrokenOff;
+            // Bumpers
+            // VehicleData.FrontBumperBrokenOff = vehicle.IsFrontBumperBrokenOff;
+            // VehicleData.RearBumperBrokenOff = vehicle.IsRearBumperBrokenOff;
 
-            // Fuel status
-            saveableVehicle.PetrolTankHealth = vehicle.PetrolTankHealth;
-            saveableVehicle.FuelLevel = vehicle.FuelLevel;
+            // Fuel/Oil
+            VehicleData.PetrolTankHealth = vehicle.PetrolTankHealth;
+            VehicleData.FuelLevel = vehicle.FuelLevel;
+            VehicleData.OilLevel = vehicle.OilLevel;
 
-            // Doors lock status
-            saveableVehicle.LockStatus = (int) vehicle.LockStatus;
+            // Doors locks
+            VehicleData.LockStatus = vehicle.LockStatus;
 
-            // Alarm status
-            saveableVehicle.Alarm = Function.Call<bool>(Hash._0x4319E335B71FFF34, new InputArgument[1] { vehicle });
+            // Alarm
+            VehicleData.Alarm = vehicle.IsAlarmSet;
 
-            // Towed vehicle model
+            // Other
             OutputArgument trailerOutput = new OutputArgument();
             Function.Call<bool>(Hash.GET_VEHICLE_TRAILER_VEHICLE, vehicle, trailerOutput);
-            saveableVehicle.TowedVehicle = (uint) trailerOutput.GetResult<Vehicle>().Model.Hash;
+            VehicleData.TowedVehicle = (uint) trailerOutput.GetResult<Vehicle>().Model.Hash;
 
-            // Windows status
-            for (int i = 0; i < 4; i++) {
-                saveableVehicle.Windows[i] = !Function.Call<bool>(Hash._0x46E571A0E20D01F1, new InputArgument[2] { vehicle, i });
+            // Windows
+            foreach (VehicleWindowIndex window in Windows) {
+                try {
+                    VehicleData.Windows.Add(
+                        new VehicleWindowData(vehicle.Windows[window].Index, vehicle.Windows[window].IsIntact)
+                    );
+                } catch { }
             }
 
-            // Doors status
-            foreach (VehicleDoor door in vehicle.GetDoors()) {
-                saveableVehicle.Doors.Add(vehicle.IsDoorBroken(door));
+            // // Doors
+            foreach (VehicleDoorIndex door in Doors) {
+                try {
+                    VehicleData.Doors.Add(
+                        new VehicleDoorData(vehicle.Doors[door].Index, vehicle.Doors[door].IsBroken)
+                    );
+                } catch { }
             }
 
-            // Tires status
-            for (int i = 0; i < 6; i++) {
-                saveableVehicle.Tires[i] = vehicle.IsTireBurst(i);
+            // Wheels
+            foreach (VehicleWheelBoneId wheel in Wheels) {
+                try {
+                    VehicleData.Wheels.Add(
+                        new VehicleWheelData(
+                            wheel,
+                            vehicle.Wheels[wheel].Health, vehicle.Wheels[wheel].TireHealth,
+                            vehicle.Wheels[wheel].IsBursted, vehicle.Wheels[wheel].IsPunctured
+                        )
+                    );
+                } catch { }
             }
 
-            // Neon status
-            for (int i = 0; i < 4; i++) {
-                saveableVehicle.Neon[i] = vehicle.IsNeonLightsOn(neons[i]);
+            // Neon
+            foreach (VehicleNeonLight neon in Neon) {
+                VehicleData.Neon.Add(
+                    new VehicleNeonData(neon, vehicle.Mods.IsNeonLightsOn(neon))
+                );
             }
 
             // Mods
-            foreach (VehicleMod m in mods) {
-                saveableVehicle.Mods.Add(vehicle.GetMod(m));
+            foreach (VehicleModType mod in Mods) {
+                try {
+                    VehicleData.Mods.Add(
+                        new VehicleModData(mod, vehicle.Mods[mod].Index, vehicle.Mods[mod].Variation)
+                    );
+                } catch { }
             }
 
             // Toggle mods
-            foreach (VehicleToggleMod m in toggleMods) {
-                saveableVehicle.ToggleMods.Add(vehicle.IsToggleModOn(m));
+            foreach (VehicleToggleModType mod in ToggleMods) {
+                try {
+                    VehicleData.ToggleMods.Add(
+                        new VehicleToggleModData(mod, vehicle.Mods[mod].IsInstalled)
+                    );
+                } catch { }
             }
 
-            saveableVehicle.ID = GetHashString($"{saveableVehicle.VehicleName} {saveableVehicle.NumberPlate.Trim()}");
+            VehicleData.ID = GetHashString($"{VehicleData.VehicleName} {VehicleData.LicensePlate.Trim()}");
 
-            return saveableVehicle;
+            return VehicleData;
         }
 
-        public static Vehicle CreateVehicleFromData(ref SaveableVehicle data) {
-            Vehicle vehicle = World.CreateVehicle(new Model((int) data.Vehicle), data.Position);
+        public static Vehicle CreateVehicleFromData(ref VehicleData data, bool nearby) {
+            Vector3 spawnPosition;
+            if (nearby) {
+                spawnPosition = World.GetNextPositionOnStreet(Game.Player.Character.Position, true);
+            } else {
+                spawnPosition = data.Position;
+            }
+            Vehicle vehicle = World.CreateVehicle(new Model((int) data.Vehicle), spawnPosition);
             data.Handle = vehicle.Handle;
 
             // General
             vehicle.DirtLevel = data.DirtLevel;
             vehicle.BodyHealth = data.BodyHealth;
-            vehicle.Livery = data.Livery;
-            vehicle.WindowTint = data.WindowTint;
+            vehicle.Mods.Livery = data.Livery;
+            vehicle.Mods.WindowTint = data.WindowTint;
             vehicle.RoofState = data.RoofState;
-            vehicle.WheelType = data.WheelType;
+            vehicle.Mods.WheelType = data.WheelType;
             vehicle.IsPersistent = true;
 
-            // Position
-            vehicle.Position = data.Position;
+            vehicle.HeliEngineHealth = data.HeliEngineHealth;
+
+            // Radio
+            // vehicle.RadioStation = data.RadioStation;
+
+            // Location
             vehicle.Rotation = data.Rotation;
 
             // Engine
             vehicle.EngineHealth = data.EngineHealth;
-            vehicle.EngineRunning = data.EngineRunning;
+            if (data.IsEngineRunning) {
+                Function.Call(Hash.SET_VEHICLE_ENGINE_ON, vehicle, true, true, false);
+            }
             vehicle.IsDriveable = data.IsDriveable;
 
-            // Colors
-            vehicle.PrimaryColor = data.PrimaryColor;
-            vehicle.SecondaryColor = data.SecondaryColor;
-            vehicle.DashboardColor = data.DashboardColor;
-            vehicle.PearlescentColor = data.PearlescentColor;
-            vehicle.RimColor = data.RimColor;
-            vehicle.TrimColor = data.TrimColor;
-            vehicle.CustomPrimaryColor = data.CustomPrimaryColor;
-            vehicle.CustomSecondaryColor = data.CustomSecondaryColor;
-            vehicle.TireSmokeColor = data.TireSmokeColor;
-            vehicle.NeonLightsColor = data.NeonLightsColor;
-            vehicle.ColorCombination = data.ColorCombination;
+            // Coloring
+            vehicle.Mods.PrimaryColor = data.PrimaryColor;
+            vehicle.Mods.SecondaryColor = data.SecondaryColor;
+            vehicle.Mods.DashboardColor = data.DashboardColor;
+            vehicle.Mods.PearlescentColor = data.PearlescentColor;
+            vehicle.Mods.RimColor = data.RimColor;
+            vehicle.Mods.TrimColor = data.TrimColor;
+            vehicle.Mods.CustomPrimaryColor = data.CustomPrimaryColor;
+            vehicle.Mods.CustomSecondaryColor = data.CustomSecondaryColor;
+            vehicle.Mods.TireSmokeColor = data.TireSmokeColor;
+            vehicle.Mods.NeonLightsColor = data.NeonLightsColor;
+            vehicle.Mods.ColorCombination = data.ColorCombination;
 
-            // Number plate
-            vehicle.NumberPlateType = data.NumberPlateType;
-            vehicle.NumberPlate = data.NumberPlate;
+            // License plate
+            vehicle.Mods.LicensePlate = data.LicensePlate;
+            vehicle.Mods.LicensePlateStyle = data.LicensePlateStyle;
 
-            // Lights status
-            vehicle.LeftHeadLightBroken = data.LeftHeadlightBroken;
-            vehicle.RightHeadLightBroken = data.RightHeadlightBroken;
-            vehicle.LightsOn = data.LightsOn;
-            vehicle.HighBeamsOn = data.HighBeamsOn;
-            vehicle.SearchLightOn = data.SearchLightOn;
+            // Lights
+            vehicle.IsLeftHeadLightBroken = data.IsLeftHeadlightBroken;
+            vehicle.IsRightHeadLightBroken = data.IsRightHeadlightBroken;
+            vehicle.AreLightsOn = data.AreLightsOn;
+            vehicle.AreHighBeamsOn = data.AreHighBeamsOn;
+            vehicle.IsSearchLightOn = data.IsSearchLightOn;
 
-            // Fuel status
+            // Fuel/Oil
             vehicle.PetrolTankHealth = data.PetrolTankHealth;
             vehicle.FuelLevel = data.FuelLevel;
+            vehicle.OilLevel = data.OilLevel;
 
-            // Doors lock status
-            vehicle.LockStatus = (VehicleLockStatus) data.LockStatus;
+            // Doors locks
+            vehicle.LockStatus = data.LockStatus;
 
-            // Alarm status
-            Function.Call<bool>(Hash._0xCDE5E70C1DDB954C, new InputArgument[2] { vehicle, data.Alarm });
+            // Alarm
+            Function.Call<bool>(Hash.SET_VEHICLE_ALARM, new InputArgument[2] { vehicle, data.Alarm });
 
-            // Towed vehicle
+            // Other
             if (data.TowedVehicle != 0) {
                 Vehicle trailer = World.CreateVehicle(new Model((int) data.TowedVehicle), data.Position + new Vector3(5f, 5f, 0f));
                 trailer.IsPersistent = true;
                 Function.Call(Hash.ATTACH_VEHICLE_TO_TRAILER, new InputArgument[2] { vehicle, trailer });
             }
 
-            vehicle.InstallModKit();
+            vehicle.Mods.InstallModKit();
 
-            // Windows status
-            for (int i = 0; i < 4; i++) {
-                if (data.Windows[i]) {
-                    vehicle.SmashWindow((VehicleWindow) i);
-                }
+            // Windows
+            foreach (VehicleWindowData window in data.Windows) {
+                try {
+                    if (!window.IsIntact) {
+                        vehicle.Windows[window.Index].Smash();
+                    }
+                } catch { }
             }
 
-            // Doors status
-            int idx = 0;
-            foreach (VehicleDoor door in vehicle.GetDoors()) {
-                if (data.Doors[idx]) {
-                    vehicle.BreakDoor(door);
-                }
-                idx++;
+            // Doors
+            foreach (VehicleDoorData door in data.Doors) {
+                try {
+                    if (door.IsBroken) {
+                        vehicle.Doors[door.Index].Break();
+                    }
+                } catch { }
             }
 
-            // Tires status
-            for (int i = 0; i < 6; i++) {
-                if (data.Tires[i]) {
-                    vehicle.BurstTire(i);
-                }
-            }
-
-            // Bumpers status
-            Action<string> BreakBumper = x => {
-                int value = Function.Call<int>(Hash._0xFB71170B7E76ACBA, new InputArgument[2] {
-                    vehicle,
-                    x
-                });
-                Vector3 loc = Function.Call<Vector3>(Hash._0x44A8FCB8ED227738, new InputArgument[2] {
-                    vehicle,
-                    value
-                });
-                vehicle.ApplyDamage(loc, 1000f, 10f);
-            };
-            if (data.FrontBumperBrokenOff) {
-                BreakBumper("bumper_f");
-            }
-            if (data.RearBumperBrokenOff) {
-                BreakBumper("bumper_r");
+            // Wheels
+            foreach (VehicleWheelData wheel in data.Wheels) {
+                try {
+                    if (wheel.IsPunctured) {
+                        vehicle.Wheels[wheel.Index].Puncture();
+                    } else if (wheel.IsBursted) {
+                        vehicle.Wheels[wheel.Index].Burst();
+                    } else {
+                        vehicle.Wheels[wheel.Index].Health = wheel.Health;
+                        vehicle.Wheels[wheel.Index].TireHealth = wheel.TireHealth;
+                    }
+                } catch { }
             }
 
             // Neon status
-            for (int i = 0; i < 4; i++) {
-                vehicle.SetNeonLightsOn(neons[i], on : data.Neon[i]);
+            foreach (VehicleNeonData neon in data.Neon) {
+                vehicle.Mods.SetNeonLightsOn(neon.Index, neon.Enabled);
             }
 
             // Mods
-            for (int i = 0; i < mods.Length; i++) {
-                vehicle.SetMod(mods[i], data.Mods[i], variations : false);
+            foreach (VehicleModData mod in data.Mods) {
+                try {
+                    vehicle.Mods[mod.Type].Index = mod.Index;
+                    vehicle.Mods[mod.Type].Variation = mod.Variation;
+                } catch { }
             }
 
             // Toggle mods
-            for (int i = 0; i < toggleMods.Length; i++) {
-                vehicle.ToggleMod(toggleMods[i], data.ToggleMods[i]);
+            foreach (VehicleToggleModData mod in data.ToggleMods) {
+                try {
+                    vehicle.Mods[mod.Type].IsInstalled = mod.IsInstalled;
+                } catch { }
             }
+
+            // // Bumpers
+            // Action<string> BreakBumper = x => {
+            //     int value = Function.Call<int>(Hash._0xFB71170B7E76ACBA, new InputArgument[2] {
+            //         vehicle,
+            //         x
+            //     });
+            //     Vector3 loc = Function.Call<Vector3>(Hash._0x44A8FCB8ED227738, new InputArgument[2] {
+            //         vehicle,
+            //         value
+            //     });
+            //     vehicle.ApplyDamage(loc, 1000f, 10f);
+            // };
+            // if (data.FrontBumperBrokenOff) {
+            //     BreakBumper("bumper_f");
+            // }
+            // if (data.RearBumperBrokenOff) {
+            //     BreakBumper("bumper_r");
+            // }
 
             return vehicle;
         }
