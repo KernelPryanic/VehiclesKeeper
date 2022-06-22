@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Diagnostics;
 using Newtonsoft.Json;
 
 namespace VehicleKeeper {
@@ -61,7 +62,7 @@ namespace VehicleKeeper {
                 });
                 return Array.Find(allVehicles, x => x.ID == ID);
             } catch (Exception e) {
-                Logger.LogError(e);
+                Logger.LogError(e.ToString());
                 return null;
             }
         }
@@ -74,7 +75,7 @@ namespace VehicleKeeper {
                     ReferenceLoopHandling = ReferenceLoopHandling.Ignore
                 });
             } catch (Exception e) {
-                Logger.LogError(e);
+                Logger.LogError(e.ToString());
                 return new VehicleData[0];
             }
         }

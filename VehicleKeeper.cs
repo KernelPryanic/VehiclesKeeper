@@ -12,7 +12,7 @@ using NativeUI;
 namespace VehicleKeeper {
     public static class Logger {
         public static void LogError(object message) {
-            File.AppendAllText("VehicleKeeper.log", "[Error] " + DateTime.Now + ": " + message + Environment.NewLine);
+            File.AppendAllText("VehicleKeeper.log", DateTime.Now + " [Error] " + message + Environment.NewLine);
         }
     }
 
@@ -207,7 +207,7 @@ namespace VehicleKeeper {
 
         void MainMenu() {
             menuPool = new MenuPool();
-            mainMenu = new UIMenu("Vehicle Keeper", "Version 3.0.0");
+            mainMenu = new UIMenu("Vehicle Keeper", "Version 3.1.0");
 
             menuPool.Add(mainMenu); // Adds mainMenu to the pool
             vehicleMenu = menuPool.AddSubMenu(mainMenu, "Saved Vehicles"); // Submenu options
@@ -235,7 +235,7 @@ namespace VehicleKeeper {
                 blip.Color = BlipColor.Blue;
                 blip.Priority = 13;
             } catch (Exception e) {
-                Logger.LogError(e.Message);
+                Logger.LogError(e.ToString().ToString());
             }
         }
 
@@ -255,7 +255,7 @@ namespace VehicleKeeper {
                 spawnedVehicles.Add(vd);
                 JsonVehicleStorage.SaveVehicle(vd);
             } catch (Exception e) {
-                Logger.LogError(e.Message);
+                Logger.LogError(e.ToString());
                 return false;
             }
 
@@ -264,12 +264,15 @@ namespace VehicleKeeper {
 
         bool UnsaveVehicle(Vehicle v, VehicleData vd) {
             try {
-                v.AttachedBlip.Delete();
+                if (v.AttachedBlip != null) {
+                    v.AttachedBlip.DisplayType = BlipDisplayType.NoDisplay;
+                    v.AttachedBlip.Delete();
+                }
                 v.IsPersistent = false;
                 spawnedVehicles.Remove(vd);
                 JsonVehicleStorage.RemoveVehicle(vd);
             } catch (Exception e) {
-                Logger.LogError(e.Message);
+                Logger.LogError(e.ToString());
                 return false;
             }
 
@@ -278,13 +281,16 @@ namespace VehicleKeeper {
 
         bool DespawnVehicle(Vehicle v, VehicleData vd) {
             try {
-                v.AttachedBlip.Delete();
+                lastVehicle = null;
+                if (v.AttachedBlip != null) {
+                    v.AttachedBlip.DisplayType = BlipDisplayType.NoDisplay;
+                    v.AttachedBlip.Delete();
+                }
                 v.IsPersistent = false;
                 v.Delete();
                 spawnedVehicles.Remove(vd);
-                lastVehicle = null;
             } catch (Exception e) {
-                Logger.LogError(e.Message);
+                Logger.LogError(e.ToString());
                 return false;
             }
 
@@ -296,7 +302,7 @@ namespace VehicleKeeper {
             try {
                 vehicle = VehicleUtilities.CreateVehicleFromData(ref vd, nearby);
             } catch (Exception e) {
-                Logger.LogError(e.Message);
+                Logger.LogError(e.ToString());
                 return false;
             }
 
@@ -315,7 +321,7 @@ namespace VehicleKeeper {
             try {
                 jsonVehicles = JsonVehicleStorage.GetVehicles();
             } catch (Exception e) {
-                Logger.LogError(e.Message);
+                Logger.LogError(e.ToString());
             }
 
             try {
@@ -327,7 +333,7 @@ namespace VehicleKeeper {
                     }
                 }
             } catch (Exception e) {
-                Logger.LogError(e.Message);
+                Logger.LogError(e.ToString());
             }
         }
 
