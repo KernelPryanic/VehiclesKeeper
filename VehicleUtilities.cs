@@ -100,7 +100,7 @@ namespace VehicleKeeper {
             // }
 
             // Other
-            if (vehicle.HasTowArm) {
+            if (Function.Call<bool>(Hash.IS_VEHICLE_ATTACHED_TO_TRAILER, vehicle)) {
                 OutputArgument trailerOutput = new OutputArgument();
                 Function.Call<bool>(Hash.GET_VEHICLE_TRAILER_VEHICLE, vehicle, trailerOutput);
                 VehicleData.TowedVehicle = (uint) trailerOutput.GetResult<Vehicle>().Model.Hash;
