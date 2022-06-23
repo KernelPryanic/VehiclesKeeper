@@ -92,6 +92,7 @@ namespace VehicleKeeper {
         public VehicleWindowTint WindowTint { get; set; }
         public VehicleRoofState RoofState { get; set; }
         public VehicleWheelType WheelType { get; set; }
+        public bool IsBulletProof { get; set; }
 
         public float HeliEngineHealth { get; set; }
 

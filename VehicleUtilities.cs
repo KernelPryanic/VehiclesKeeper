@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 using GTA;
@@ -42,23 +41,13 @@ namespace VehicleKeeper {
             VehicleData.WindowTint = vehicle.Mods.WindowTint;
             VehicleData.RoofState = vehicle.RoofState;
             VehicleData.WheelType = vehicle.Mods.WheelType;
+            VehicleData.IsBulletProof = vehicle.IsBulletProof;
 
             VehicleData.HeliEngineHealth = Math.Max(vehicle.HeliEngineHealth, (float) 20);
-
-            // Radio
-            // if (Game.Player.Character.IsInVehicle()) {
-            //     VehicleData.RadioStation = (RadioStation) Function.Call<int>(Hash.GET_PLAYER_RADIO_STATION_INDEX);
-            //     GTA.UI.Notification.Show(VehicleData.RadioStation.ToString());
-            // }
 
             // Location
             VehicleData.Position = vehicle.Position;
             VehicleData.Rotation = vehicle.Rotation;
-
-            // Engine
-            VehicleData.EngineHealth = Math.Max(vehicle.EngineHealth, (float) 20);
-            VehicleData.IsEngineRunning = vehicle.IsEngineRunning;
-            VehicleData.IsDriveable = vehicle.IsDriveable;
 
             // Coloring
             VehicleData.PrimaryColor = vehicle.Mods.PrimaryColor;
@@ -99,10 +88,23 @@ namespace VehicleKeeper {
             // Alarm
             VehicleData.Alarm = vehicle.IsAlarmSet;
 
+            // Engine
+            VehicleData.EngineHealth = Math.Max(vehicle.EngineHealth, (float) 20);
+            VehicleData.IsEngineRunning = vehicle.IsEngineRunning;
+            VehicleData.IsDriveable = vehicle.IsDriveable;
+
+            // Radio
+            // if (Game.Player != null && Game.Player.Character.IsInVehicle()) {
+            //     VehicleData.RadioStation =  (RadioStation) Function.Call<int>(Hash.GET_PLAYER_RADIO_STATION_INDEX);
+            //     GTA.UI.Notification.Show(VehicleData.RadioStation.ToString());
+            // }
+
             // Other
-            OutputArgument trailerOutput = new OutputArgument();
-            Function.Call<bool>(Hash.GET_VEHICLE_TRAILER_VEHICLE, vehicle, trailerOutput);
-            VehicleData.TowedVehicle = (uint) trailerOutput.GetResult<Vehicle>().Model.Hash;
+            if (vehicle.HasTowArm) {
+                OutputArgument trailerOutput = new OutputArgument();
+                Function.Call<bool>(Hash.GET_VEHICLE_TRAILER_VEHICLE, vehicle, trailerOutput);
+                VehicleData.TowedVehicle = (uint) trailerOutput.GetResult<Vehicle>().Model.Hash;
+            }
 
             // Windows
             foreach (VehicleWindowIndex window in Windows) {
@@ -115,7 +117,7 @@ namespace VehicleKeeper {
                 }
             }
 
-            // // Doors
+            // Doors
             foreach (VehicleDoorIndex door in Doors) {
                 try {
                     VehicleData.Doors.Add(
@@ -188,28 +190,19 @@ namespace VehicleKeeper {
             data.Handle = vehicle.Handle;
 
             // General
+            vehicle.IsPersistent = true;
             vehicle.DirtLevel = data.DirtLevel;
             vehicle.BodyHealth = data.BodyHealth;
             vehicle.Mods.Livery = data.Livery;
             vehicle.Mods.WindowTint = data.WindowTint;
             vehicle.RoofState = data.RoofState;
             vehicle.Mods.WheelType = data.WheelType;
-            vehicle.IsPersistent = true;
+            vehicle.IsBulletProof = data.IsBulletProof;
 
             vehicle.HeliEngineHealth = data.HeliEngineHealth;
 
-            // Radio
-            // vehicle.RadioStation = data.RadioStation;
-
             // Location
             vehicle.Rotation = data.Rotation;
-
-            // Engine
-            vehicle.EngineHealth = data.EngineHealth;
-            if (data.IsEngineRunning) {
-                Function.Call(Hash.SET_VEHICLE_ENGINE_ON, vehicle, true, true, false);
-            }
-            vehicle.IsDriveable = true;
 
             // Coloring
             vehicle.Mods.PrimaryColor = data.PrimaryColor;
@@ -244,13 +237,21 @@ namespace VehicleKeeper {
             vehicle.LockStatus = data.LockStatus;
 
             // Alarm
-            Function.Call<bool>(Hash.SET_VEHICLE_ALARM, new InputArgument[2] { vehicle, data.Alarm });
+            Function.Call<bool>(Hash.SET_VEHICLE_ALARM, vehicle, data.Alarm);
+
+            // Engine
+            vehicle.EngineHealth = data.EngineHealth;
+            vehicle.IsDriveable = true;
+            Function.Call(Hash.SET_VEHICLE_ENGINE_ON, vehicle, data.IsEngineRunning, true, true);
+
+            // Radio
+            // vehicle.RadioStation = data.RadioStation;
 
             // Other
             if (data.TowedVehicle != 0) {
                 Vehicle trailer = World.CreateVehicle(new Model((int) data.TowedVehicle), data.Position + new Vector3(5f, 5f, 0f));
                 trailer.IsPersistent = true;
-                Function.Call(Hash.ATTACH_VEHICLE_TO_TRAILER, new InputArgument[2] { vehicle, trailer });
+                Function.Call(Hash.ATTACH_VEHICLE_TO_TRAILER, vehicle, trailer);
             }
 
             vehicle.Mods.InstallModKit();
