@@ -113,7 +113,7 @@ namespace VehicleKeeper {
                         new VehicleWindowData(vehicle.Windows[window].Index, vehicle.Windows[window].IsIntact)
                     );
                 } catch (Exception e) {
-                    Logger.LogError(e.ToString().ToString());
+                    Logger.LogError(e.ToString());
                 }
             }
 
@@ -124,7 +124,7 @@ namespace VehicleKeeper {
                         new VehicleDoorData(vehicle.Doors[door].Index, vehicle.Doors[door].IsBroken)
                     );
                 } catch (Exception e) {
-                    Logger.LogError(e.ToString().ToString());
+                    Logger.LogError(e.ToString());
                 }
             }
 
@@ -140,7 +140,7 @@ namespace VehicleKeeper {
                             )
                         );
                     } catch (Exception e) {
-                        Logger.LogError(e.ToString().ToString());
+                        Logger.LogError(e.ToString());
                     }
                 }
             }
@@ -159,7 +159,7 @@ namespace VehicleKeeper {
                         new VehicleModData(mod, vehicle.Mods[mod].Index, vehicle.Mods[mod].Variation)
                     );
                 } catch (Exception e) {
-                    Logger.LogError(e.ToString().ToString());
+                    Logger.LogError(e.ToString());
                 }
             }
 
@@ -170,7 +170,7 @@ namespace VehicleKeeper {
                         new VehicleToggleModData(mod, vehicle.Mods[mod].IsInstalled)
                     );
                 } catch (Exception e) {
-                    Logger.LogError(e.ToString().ToString());
+                    Logger.LogError(e.ToString());
                 }
             }
 
@@ -263,7 +263,7 @@ namespace VehicleKeeper {
                         vehicle.Windows[window.Index].Smash();
                     }
                 } catch (Exception e) {
-                    Logger.LogError(e.ToString().ToString());
+                    Logger.LogError(e.ToString());
                 }
             }
 
@@ -274,7 +274,7 @@ namespace VehicleKeeper {
                         vehicle.Doors[door.Index].Break();
                     }
                 } catch (Exception e) {
-                    Logger.LogError(e.ToString().ToString());
+                    Logger.LogError(e.ToString());
                 }
             }
 
@@ -290,7 +290,7 @@ namespace VehicleKeeper {
                         vehicle.Wheels[wheel.Index].TireHealth = wheel.TireHealth;
                     }
                 } catch (Exception e) {
-                    Logger.LogError(e.ToString().ToString());
+                    Logger.LogError(e.ToString());
                 }
             }
 
@@ -305,7 +305,7 @@ namespace VehicleKeeper {
                     vehicle.Mods[mod.Type].Index = mod.Index;
                     vehicle.Mods[mod.Type].Variation = mod.Variation;
                 } catch (Exception e) {
-                    Logger.LogError(e.ToString().ToString());
+                    Logger.LogError(e.ToString());
                 }
             }
 
@@ -314,7 +314,7 @@ namespace VehicleKeeper {
                 try {
                     vehicle.Mods[mod.Type].IsInstalled = mod.IsInstalled;
                 } catch (Exception e) {
-                    Logger.LogError(e.ToString().ToString());
+                    Logger.LogError(e.ToString());
                 }
             }
 

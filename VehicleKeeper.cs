@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using GTA;
 using GTA.Math;
-using GTA.Native;
 using NativeUI;
 
 namespace VehicleKeeper {
@@ -26,6 +24,7 @@ namespace VehicleKeeper {
         MenuPool MenuPool;
         UIMenu MainMenu;
         UIMenu VehicleMenu;
+        UIMenuListItem BlipColorListItem;
         int Period = 0;
         List<VehicleData> SpawnedVehicles = new List<VehicleData>();
         Vehicle LastVehicle = null;
@@ -37,19 +36,21 @@ namespace VehicleKeeper {
 
             MainMenuInit();
 
-            Tick += OnTick;
-            KeyDown += OnKeyDown;
-            KeyUp += OnKeyUp;
-
             Config = ScriptSettings.Load(@"./scripts/VehicleKeeper.ini");
             VehicleLimit = Config.GetValue("Configuration", "VehicleLimit", 8);
             MenuKey = Config.GetValue("Configuration", "MenuKey", Keys.T);
             SaveKey = Config.GetValue("Configuration", "SaveKey", Keys.X);
             UnsaveKey = Config.GetValue("Configuration", "UnsaveKey", Keys.Z);
+            BlipColor = Config.GetValue("Configuration", "BlipColor", BlipColor.Blue);
+            BlipColorListItem.Index = BlipColorListItem.Items.FindIndex(x => (BlipColor) x == BlipColor);
 
             string basePath = Config.GetValue("Configuration", "VehiclePersistencePath", @"./scripts/VehicleKeeper");
 
             JsonVehicleStorage.Initialize(basePath);
+
+            Tick += OnTick;
+            KeyDown += OnKeyDown;
+            KeyUp += OnKeyUp;
         }
 
         public void OnTick(object sender, EventArgs eventArgs) {
@@ -73,14 +74,17 @@ namespace VehicleKeeper {
                 VehicleData vd = VehicleUtilities.CreateInfo(LastVehicle);
                 List<VehicleData> savedVehicles = JsonVehicleStorage.GetVehicles();
                 if (savedVehicles.Contains(vd)) {
-                   UpdateVehicleData(LastVehicle, vd);
+                    UpdateVehicleData(LastVehicle, vd);
                 }
             }
 
             for (int i = 0; i < SpawnedVehicles.Count; i++) {
                 Vehicle v = (Vehicle) Entity.FromHandle(SpawnedVehicles[i].Handle);
-                if (v.IsConsideredDestroyed) {
-                    GTA.UI.Notification.Show($"Vehicle {v.DisplayName} is destroyed");
+                if (v == null) {
+                    GTA.UI.Notification.Show($"Vehicle {SpawnedVehicles[i].VehicleName} {SpawnedVehicles[i].LicensePlate.Trim()} is despawned");
+                    DespawnVehicle(v, SpawnedVehicles[i]);
+                } else if (v.IsConsideredDestroyed) {
+                    GTA.UI.Notification.Show($"Vehicle {SpawnedVehicles[i].VehicleName} {SpawnedVehicles[i].LicensePlate.Trim()} is destroyed");
                     DespawnVehicle(v, SpawnedVehicles[i]);
                 }
             }
@@ -101,7 +105,7 @@ namespace VehicleKeeper {
                 blip.Color = BlipColor;
                 blip.Priority = 13;
             } catch (Exception e) {
-                Logger.LogError(e.ToString().ToString());
+                Logger.LogError(e.ToString());
             }
         }
 
@@ -296,35 +300,9 @@ namespace VehicleKeeper {
             if (item.Text == "Unsave all") UnsaveVehicles();
             if (item.Text == "Blip color") {
                 UIMenuListItem listItem = (UIMenuListItem) item;
-                switch ((string) listItem.Items[listItem.Index]) {
-                    case "Blue":
-                        BlipColor = BlipColor.Blue;
-                        break;
-                    case "Green":
-                        BlipColor = BlipColor.Green;
-                        break;
-                    case "Purple":
-                        BlipColor = BlipColor.Purple;
-                        break;
-                    case "Red":
-                        BlipColor = BlipColor.Red;
-                        break;
-                    case "Orange":
-                        BlipColor = BlipColor.Orange;
-                        break;
-                    case "Yellow":
-                        BlipColor = BlipColor.Yellow;
-                        break;
-                    case "Pink":
-                        BlipColor = BlipColor.Pink;
-                        break;
-                    case "White":
-                        BlipColor = BlipColor.White;
-                        break;
-                    default:
-                        BlipColor = BlipColor.Blue;
-                        break;
-                }
+                BlipColor = (BlipColor) listItem.Items[listItem.Index];
+                Config.SetValue("Configuration", "BlipColor", BlipColor);
+                Config.Save();
                 foreach (VehicleData vd in SpawnedVehicles) {
                     Vehicle v;
                     (v, _) = GetSpawnedIfPossible(vd);
@@ -443,7 +421,7 @@ namespace VehicleKeeper {
 
         void MainMenuInit() {
             MenuPool = new MenuPool();
-            MainMenu = new UIMenu("Vehicle Keeper", "Version 3.3.0");
+            MainMenu = new UIMenu("Vehicle Keeper", "Version 3.4.0");
 
             MenuPool.Add(MainMenu); // Adds MainMenu to the pool
             VehicleMenu = MenuPool.AddSubMenu(MainMenu, "Saved vehicles"); // Submenu options
@@ -455,11 +433,20 @@ namespace VehicleKeeper {
             MainMenu.AddItem(despawnVehicles);
             UIMenuItem unsaveButton = new UIMenuItem("Unsave all");
             MainMenu.AddItem(unsaveButton);
-            UIMenuListItem BlipColor = new UIMenuListItem("Blip color",
-                new List<object> { "Blue", "Green", "Purple", "Red", "Orange", "Yellow", "Pink", "White" },
+            BlipColorListItem = new UIMenuListItem("Blip color",
+                new List<object> {
+                    BlipColor.Blue,
+                    BlipColor.Green,
+                    BlipColor.Purple,
+                    BlipColor.Red,
+                    BlipColor.Orange,
+                    BlipColor.Yellow,
+                    BlipColor.Pink,
+                    BlipColor.White
+                },
                 0
             );
-            MainMenu.AddItem(BlipColor);
+            MainMenu.AddItem(BlipColorListItem);
             UIMenuItem exitButton = new UIMenuItem("Exit");
             MainMenu.AddItem(exitButton);
 
