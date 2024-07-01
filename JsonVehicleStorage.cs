@@ -1,14 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using Newtonsoft.Json;
 
 namespace VehicleKeeper {
     public static class JsonVehicleStorage {
         private static string BasePath = string.Empty;
-        private static string FileName = "preserved-vehicles.json";
+        private static readonly string FileName = "preserved-vehicles.json";
         private static List<VehicleData> Cache = new List<VehicleData>();
 
         public static void Initialize(string path) {

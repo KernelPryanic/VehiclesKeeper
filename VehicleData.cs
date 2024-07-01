@@ -74,7 +74,7 @@ namespace VehicleKeeper {
     public class VehicleData {
         public override bool Equals(object obj) {
             if (obj.GetType() != typeof(VehicleData)) return false;
-            return this.ID == ((VehicleData) obj).ID;
+            return ID == ((VehicleData)obj).ID;
         }
 
         public override int GetHashCode() {
@@ -92,21 +92,12 @@ namespace VehicleKeeper {
         public VehicleWindowTint WindowTint { get; set; }
         public VehicleRoofState RoofState { get; set; }
         public VehicleWheelType WheelType { get; set; }
-        public bool IsBulletProof { get; set; }
 
         public float HeliEngineHealth { get; set; }
-
-        // Radio
-        // public RadioStation RadioStation { get; set; }
 
         // Location
         public Vector3 Position { get; set; }
         public Vector3 Rotation { get; set; }
-
-        // Engine
-        public float EngineHealth { get; set; }
-        public bool IsEngineRunning { get; set; }
-        public bool IsDriveable { get; set; }
 
         // Coloring
         public VehicleColor PrimaryColor { get; set; }
@@ -126,9 +117,10 @@ namespace VehicleKeeper {
         public LicensePlateStyle LicensePlateStyle { get; set; }
 
         // Lights
+        public float LightsMultiplier { get; set; }
+        public bool AreLightsOn { get; set; }
         public bool IsLeftHeadlightBroken { get; set; }
         public bool IsRightHeadlightBroken { get; set; }
-        public bool AreLightsOn { get; set; }
         public bool AreHighBeamsOn { get; set; }
         public bool IsSearchLightOn { get; set; }
 
@@ -142,6 +134,19 @@ namespace VehicleKeeper {
 
         // Alarm
         public bool Alarm { get; set; }
+
+        // Engine
+        public float EngineHealth { get; set; }
+        public bool IsEngineRunning { get; set; }
+        public bool IsDriveable { get; set; }
+
+        // Proofs
+        public bool IsBulletProof { get; set; }
+        public bool IsFireProof { get; set; }
+        public bool IsExplosionProof { get; set; }
+        public bool IsCollisionProof { get; set; }
+        public bool IsMeleeProof { get; set; }
+        public bool IsSteamProof { get; set; }
 
         // Bumpers
         // public bool FrontBumperBrokenOff { get; set; }
