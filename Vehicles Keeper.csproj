@@ -69,7 +69,6 @@
     <Compile Include="JsonVehicleStorage.cs" />
     <Compile Include="VehicleData.cs" />
     <Compile Include="VehicleKeeper.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="VehicleUtilities.cs" />
   </ItemGroup>
   <ItemGroup>
