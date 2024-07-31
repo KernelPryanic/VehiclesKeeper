@@ -7,12 +7,12 @@ using GTA.Native;
 
 namespace VehicleKeeper {
     public static class VehicleUtilities {
-        static readonly VehicleWindowIndex[] Windows = (VehicleWindowIndex[]) Enum.GetValues(typeof(VehicleWindowIndex));
-        static readonly VehicleDoorIndex[] Doors = (VehicleDoorIndex[]) Enum.GetValues(typeof(VehicleDoorIndex));
-        static readonly VehicleWheelBoneId[] Wheels = (VehicleWheelBoneId[]) Enum.GetValues(typeof(VehicleWheelBoneId));
-        static readonly VehicleNeonLight[] Neon = (VehicleNeonLight[]) Enum.GetValues(typeof(VehicleNeonLight));
-        static readonly VehicleModType[] Mods = (VehicleModType[]) Enum.GetValues(typeof(VehicleModType));
-        static readonly VehicleToggleModType[] ToggleMods = (VehicleToggleModType[]) Enum.GetValues(typeof(VehicleToggleModType));
+        static readonly VehicleWindowIndex[] Windows = (VehicleWindowIndex[])Enum.GetValues(typeof(VehicleWindowIndex));
+        static readonly VehicleDoorIndex[] Doors = (VehicleDoorIndex[])Enum.GetValues(typeof(VehicleDoorIndex));
+        static readonly VehicleWheelBoneId[] Wheels = (VehicleWheelBoneId[])Enum.GetValues(typeof(VehicleWheelBoneId));
+        static readonly VehicleNeonLight[] Neon = (VehicleNeonLight[])Enum.GetValues(typeof(VehicleNeonLight));
+        static readonly VehicleModType[] Mods = (VehicleModType[])Enum.GetValues(typeof(VehicleModType));
+        static readonly VehicleToggleModType[] ToggleMods = (VehicleToggleModType[])Enum.GetValues(typeof(VehicleToggleModType));
 
         public static byte[] GetHash(string input) {
             HashAlgorithm algorithm = SHA256.Create();
@@ -111,7 +111,7 @@ namespace VehicleKeeper {
             if (Function.Call<bool>(Hash.IS_VEHICLE_ATTACHED_TO_TRAILER, vehicle)) {
                 OutputArgument trailerOutput = new OutputArgument();
                 Function.Call<bool>(Hash.GET_VEHICLE_TRAILER_VEHICLE, vehicle, trailerOutput);
-                VehicleData.TowedVehicle = (uint) trailerOutput.GetResult<Vehicle>().Model.Hash;
+                VehicleData.TowedVehicle = (uint)trailerOutput.GetResult<Vehicle>().Model.Hash;
             }
 
             // Windows
@@ -194,7 +194,7 @@ namespace VehicleKeeper {
             } else {
                 spawnPosition = data.Position;
             }
-            Vehicle vehicle = World.CreateVehicle(new Model((int) data.Vehicle), spawnPosition);
+            Vehicle vehicle = World.CreateVehicle(new Model((int)data.Vehicle), spawnPosition);
             data.Handle = vehicle.Handle;
 
             // General
@@ -230,9 +230,7 @@ namespace VehicleKeeper {
 
             // Lights
             vehicle.LightsMultiplier = data.LightsMultiplier;
-            if (data.AreLightsOn) {
-                vehicle.SetScriptedLightSetting(ScriptedVehicleLightSetting.SetVehicleLightsOn);
-            }
+            vehicle.AreLightsOn = data.AreLightsOn;
             vehicle.IsLeftHeadLightBroken = data.IsLeftHeadlightBroken;
             vehicle.IsRightHeadLightBroken = data.IsRightHeadlightBroken;
             vehicle.AreHighBeamsOn = data.AreHighBeamsOn;
@@ -251,7 +249,7 @@ namespace VehicleKeeper {
 
             // Engine
             vehicle.EngineHealth = data.EngineHealth;
-            vehicle.IsUndriveable = false;
+            vehicle.IsDriveable = true;
             Function.Call(Hash.SET_VEHICLE_ENGINE_ON, vehicle, data.IsEngineRunning, true, true);
 
             // Proofs
@@ -264,7 +262,7 @@ namespace VehicleKeeper {
 
             // Other
             if (data.TowedVehicle != 0) {
-                Vehicle trailer = World.CreateVehicle(new Model((int) data.TowedVehicle), data.Position + new Vector3(5f, 5f, 0f));
+                Vehicle trailer = World.CreateVehicle(new Model((int)data.TowedVehicle), data.Position + new Vector3(5f, 5f, 0f));
                 trailer.IsPersistent = true;
                 Function.Call(Hash.ATTACH_VEHICLE_TO_TRAILER, vehicle, trailer);
             }
