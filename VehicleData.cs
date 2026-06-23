@@ -51,6 +51,15 @@ namespace VehicleKeeper {
         public bool Enabled { get; set; }
     }
 
+    public class VehicleExtraData {
+        public VehicleExtraData(int index, bool isOn) {
+            Index = index;
+            IsOn = isOn;
+        }
+        public int Index { get; set; }
+        public bool IsOn { get; set; }
+    }
+
     public class VehicleModData {
         public VehicleModData(VehicleModType type, int index, bool variation) {
             Type = type;
@@ -73,8 +82,8 @@ namespace VehicleKeeper {
 
     public class VehicleData {
         public override bool Equals(object obj) {
-            if (obj.GetType() != typeof(VehicleData)) return false;
-            return ID == ((VehicleData)obj).ID;
+            if (!(obj is VehicleData other)) return false;
+            return ID == other.ID;
         }
 
         public override int GetHashCode() {
@@ -108,9 +117,19 @@ namespace VehicleKeeper {
         public VehicleColor TrimColor { get; set; }
         public System.Drawing.Color CustomPrimaryColor { get; set; }
         public System.Drawing.Color CustomSecondaryColor { get; set; }
+        // Whether each slot uses a custom RGB paint vs. a standard palette color.
+        // Standard palette entries carry the finish (matte/metallic/pearlescent);
+        // forcing a custom RGB over a standard paint flattens that finish, so the
+        // restore must branch on these flags.
+        public bool IsPrimaryColorCustom { get; set; }
+        public bool IsSecondaryColorCustom { get; set; }
         public System.Drawing.Color TireSmokeColor { get; set; }
         public System.Drawing.Color NeonLightsColor { get; set; }
         public int ColorCombination { get; set; }
+        // Xenon headlight tint. The on/off state is a toggle mod (saved with the
+        // other toggle mods); only the color index needs its own field. -1 means
+        // the stock/default xenon color (no override).
+        public int XenonColorIndex { get; set; }
 
         // License plate
         public string LicensePlate { get; set; }
@@ -142,6 +161,8 @@ namespace VehicleKeeper {
 
         // Proofs
         public bool IsBulletProof { get; set; }
+        // Bulletproof tires: CanTiresBurst == false means tires can't be shot out.
+        public bool CanTiresBurst { get; set; }
         public bool IsFireProof { get; set; }
         public bool IsExplosionProof { get; set; }
         public bool IsCollisionProof { get; set; }
@@ -155,6 +176,7 @@ namespace VehicleKeeper {
         // Other
         public uint TowedVehicle { get; set; }
 
+        public List<VehicleExtraData> Extras { get; set; } = new List<VehicleExtraData>();
         public List<VehicleWindowData> Windows { get; set; } = new List<VehicleWindowData>();
         public List<VehicleDoorData> Doors { get; set; } = new List<VehicleDoorData>();
         public List<VehicleWheelData> Wheels { get; set; } = new List<VehicleWheelData>();
