@@ -12,13 +12,11 @@ PROJECT     := Vehicles Keeper.csproj
 CONFIG      ?= Release
 PLATFORM    ?= x64
 
-# Mod identity / packaging. DLL name is the AssemblyName; VERSION is read from the
-# csproj <Version> so the zip name tracks the released version automatically.
+# Mod identity / packaging. DLL name is the AssemblyName.
 DLL         := VehicleKeeper.dll
-VERSION     := $(shell sed -n 's:.*<Version>\([0-9.]*\)\.0</Version>.*:\1:p' "$(PROJECT)" | head -1)
 DIST        := dist
 STAGE       := $(DIST)/scripts
-ZIP         := $(DIST)/VehicleKeeper-$(VERSION).zip
+ZIP         := $(DIST)/VehicleKeeper.zip
 
 # DLLs that the player already has from their ScriptHookV .NET install - they are
 # referenced (SpecificVersion=False, not Private) but must NOT be bundled. Anything
