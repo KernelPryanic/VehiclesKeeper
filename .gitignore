@@ -1,4 +1,12 @@
 bin/
 obj/
+dist/
 .vs/*
-.vscode/
+
+# Build artifacts and runtime files that must never be committed.
+*.dll
+*.log
+
+# Keep shared build tasks; ignore the per-user VS Code files.
+.vscode/*
+!.vscode/tasks.json
