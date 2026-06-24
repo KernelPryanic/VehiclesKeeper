@@ -144,7 +144,7 @@ not tied to any one mod — and apply to every mod of this shape in this workspa
   just prints the manual-test steps.
 - `make package` — build, then zip an upload-ready archive (the `scripts/` layout
   the site expects: the mod DLL plus any non-SHVDN dependency DLLs, never the
-  player-provided SHVDN/LemonUI assemblies). The zip name tracks the csproj version.
+  player-provided SHVDN/LemonUI assemblies). The zip name has no version suffix.
 - `make rebuild` / `make clean` — full rebuild / remove `bin/`+`obj/`(+`dist/`).
 - The Makefile discovers MSBuild via `vswhere`; override with
   `make build MSBUILD=/path/to/MSBuild.exe` if your VS edition differs. VS Code's
