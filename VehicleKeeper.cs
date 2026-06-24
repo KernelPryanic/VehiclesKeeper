@@ -104,7 +104,6 @@ namespace VehicleKeeper {
 
 	public class VehicleKeeper : Script {
 		readonly ScriptSettings Config;
-		readonly int VehicleLimit;
 		readonly Keys SaveKey;
 		readonly Keys UnsaveKey;
 		readonly Keys MenuKey;
@@ -138,7 +137,6 @@ namespace VehicleKeeper {
 			Config = ScriptSettings.Load(ScriptPaths.For("VehicleKeeper.ini"));
 
 			// Define default values
-			SetConfigValueIfNotDefined("Configuration", "VehicleLimit", 8);
 			SetConfigValueIfNotDefined("Configuration", "MenuKey", Keys.T);
 			SetConfigValueIfNotDefined("Configuration", "SaveKey", Keys.X);
 			SetConfigValueIfNotDefined("Configuration", "UnsaveKey", Keys.Z);
@@ -147,7 +145,6 @@ namespace VehicleKeeper {
 			SetConfigValueIfNotDefined("Configuration", "VehiclePersistencePath", defaultPersistencePath);
 
 			// Read configuration values
-			VehicleLimit = Config.GetValue("Configuration", "VehicleLimit", 8);
 			MenuKey = Config.GetValue("Configuration", "MenuKey", Keys.T);
 			SaveKey = Config.GetValue("Configuration", "SaveKey", Keys.X);
 			UnsaveKey = Config.GetValue("Configuration", "UnsaveKey", Keys.Z);
@@ -212,7 +209,12 @@ namespace VehicleKeeper {
 					World.GetZoneDisplayName(player.Position) != "San Andreas"
 				) {
 					VehicleData vd = VehicleUtilities.CreateInfo(LastVehicle);
-					UpdateVehicleData(LastVehicle, vd);
+					// Only persist drift for a vehicle that is still tracked. Without
+					// this, unsaving the car you are sitting in would be undone on the
+					// next tick (UpdateVehicleData re-adds it to the store).
+					if (SpawnedVehicles.Contains(vd)) {
+						UpdateVehicleData(LastVehicle, vd);
+					}
 				}
 			} catch (Exception e) {
 				// A held entity may despawn between ticks and throw on access. Log
@@ -226,7 +228,10 @@ namespace VehicleKeeper {
 			// walking the live list by index would skip entries after a removal.
 			foreach (VehicleData vd in SpawnedVehicles.ToList()) {
 				Vehicle v = (Vehicle)Entity.FromHandle(vd.Handle);
-				if (v == null) {
+				// A handle can be non-null yet point to a despawned entity; treat that
+				// as gone too, otherwise the .IsConsideredDestroyed/.Position access
+				// below throws and aborts the rest of the blip loop for this tick.
+				if (v == null || !v.Exists()) {
 					GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} is despawned", false);
 					DespawnVehicle(v, vd);
 				} else if (v.IsConsideredDestroyed) {
@@ -246,7 +251,9 @@ namespace VehicleKeeper {
 		}
 
 		void SetBlipOnVehicle(Vehicle v) {
-			if (v == null || v.AttachedBlip != null) {
+			// A handle can be non-null yet point to a despawned entity; .Exists()
+			// guards the .AttachedBlip/.AddBlip access from throwing on a dead vehicle.
+			if (v == null || !v.Exists() || v.AttachedBlip != null) {
 				return;
 			}
 
@@ -263,7 +270,9 @@ namespace VehicleKeeper {
 		}
 
 		void RemoveBlipFromVehicle(Vehicle v) {
-			if (v != null && v.AttachedBlip != null) {
+			// See SetBlipOnVehicle: a non-null handle may be a despawned entity, so
+			// .Exists() must gate the .AttachedBlip access.
+			if (v != null && v.Exists() && v.AttachedBlip != null) {
 				v.AttachedBlip.Delete();
 			}
 		}
@@ -296,6 +305,11 @@ namespace VehicleKeeper {
 				if (v != null) {
 					RemoveBlipFromVehicle(v);
 					v.IsPersistent = false;
+					// Stop the per-tick auto-save from resurrecting this vehicle: if
+					// it is the one being tracked for drift, clear the target.
+					if (v == LastVehicle) {
+						LastVehicle = null;
+					}
 				}
 				SpawnedVehicles.Remove(vd);
 				XmlVehicleStorage.RemoveVehicle(vd);
@@ -391,6 +405,7 @@ namespace VehicleKeeper {
 				UnsaveVehicle(v, vd);
 			}
 
+			RebuildVehicleMenu();
 			GTA.UI.Notification.PostTicker("All vehicles have been unsaved", false);
 		}
 
@@ -412,12 +427,9 @@ namespace VehicleKeeper {
 				VehicleData vd = VehicleUtilities.CreateInfo(currentVeh);
 				List<VehicleData> savedVehicles = XmlVehicleStorage.GetVehicles();
 				if (!savedVehicles.Contains(vd)) {
-					if (savedVehicles.Count() < VehicleLimit) {
-						SaveVehicle(currentVeh, vd);
-						GTA.UI.Notification.PostTicker($"Vehicle {currentVeh.DisplayName} {currentVeh.Mods.LicensePlate.Trim()} saved", false);
-					} else {
-						GTA.UI.Notification.PostTicker($"You can't save more than {VehicleLimit} vehicles", false);
-					}
+					SaveVehicle(currentVeh, vd);
+					RebuildVehicleMenu();
+					GTA.UI.Notification.PostTicker($"Vehicle {currentVeh.DisplayName} {currentVeh.Mods.LicensePlate.Trim()} saved", false);
 				} else {
 					UpdateVehicleData(currentVeh, vd);
 					GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} has been overridden", false);
@@ -437,6 +449,7 @@ namespace VehicleKeeper {
 
 				if (savedVehicles.Contains(vd)) {
 					UnsaveVehicle(currentVeh, vd);
+					RebuildVehicleMenu();
 					GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} is unsaved", false);
 				}
 			} else if (player.IsOnFoot) {
@@ -465,9 +478,13 @@ namespace VehicleKeeper {
 							BlipColor = BlipColorListItem.SelectedItem;
 							Config.SetValue("Configuration", "BlipColor", BlipColor);
 							Config.Save();
-							foreach (VehicleData vd in SpawnedVehicles) {
+							// Snapshot the list (GetSpawnedIfPossible touches no shared
+							// state here, but match the file's iterate-a-copy convention)
+							// and guard each handle with .Exists(): a despawned vehicle's
+							// handle is non-null but throws on .AttachedBlip.
+							foreach (VehicleData vd in SpawnedVehicles.ToList()) {
 								(Vehicle v, _) = GetSpawnedIfPossible(vd);
-								if (v != null && v.AttachedBlip != null) {
+								if (v != null && v.Exists() && v.AttachedBlip != null) {
 									v.AttachedBlip.Color = BlipColor;
 								}
 							}
@@ -542,6 +559,9 @@ namespace VehicleKeeper {
 					(v, vd) = GetSpawnedIfPossible(vd);
 
 					if (UnsaveVehicle(v, vd)) {
+						// Refresh the list so the unsaved vehicle's row disappears
+						// immediately instead of lingering until the menu is reopened.
+						RebuildVehicleMenu();
 						GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} has been unsaved", false);
 					} else {
 						GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} can't be unsaved", false);
@@ -577,15 +597,20 @@ namespace VehicleKeeper {
 				return;
 			}
 
-			// Opening: rebuild the saved-vehicle list from the store.
-			List<VehicleData> savedVehicles = XmlVehicleStorage.GetVehicles();
+			RebuildVehicleMenu();
+			MainMenu.Visible = true;
+		}
+
+		// Rebuild the saved-vehicle submenu from the store. This is the single source
+		// of truth for the list: call it whenever the saved set changes (save/unsave,
+		// from any path) so the menu never shows a stale entry or misses a new one.
+		void RebuildVehicleMenu() {
 			VehicleMenu.Clear();
-			foreach (VehicleData vd in savedVehicles) {
+			foreach (VehicleData vd in XmlVehicleStorage.GetVehicles()) {
 				NativeListItem<string> vehicleItem = new NativeListItem<string>($"{vd.VehicleName} {vd.LicensePlate.Trim()}",
 					"Spawn", "Spawn Nearby", "Despawn", "Save", "Unsave", "Set Spawn Location");
 				VehicleMenu.Add(vehicleItem);
 			}
-			MainMenu.Visible = true;
 		}
 
 		public void OnKeyUp(object sender, KeyEventArgs e) {
@@ -601,7 +626,7 @@ namespace VehicleKeeper {
 		}
 
 		void MainMenuInit() {
-			MainMenu = new NativeMenu("Vehicle Keeper", "Version 4.0.0");
+			MainMenu = new NativeMenu("Vehicle Keeper", "Version 4.1.0");
 
 			VehicleMenu = new NativeMenu("Saved Vehicles", "Saved Vehicles");
 			MainMenu.AddSubMenu(VehicleMenu);
