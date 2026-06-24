@@ -19,8 +19,9 @@ STAGE       := $(DIST)/scripts
 ZIP         := $(DIST)/VehicleKeeper.zip
 
 # DLLs that the player already has from their ScriptHookV .NET install - they are
-# referenced (SpecificVersion=False, not Private) but must NOT be bundled. Anything
-# else the build copies to bin/ (e.g. Newtonsoft.Json, marked Private) IS shipped.
+# referenced (SpecificVersion=False, not Private) but must NOT be bundled. The mod
+# ships as a single DLL (it has no third-party runtime dependency); anything else
+# the build copies to bin/ and marks Private would be shipped too.
 PLAYER_PROVIDED := LemonUI.dll LemonUI.SHVDN3.dll ScriptHookVDotNet3.dll
 
 VSWHERE := /c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe
@@ -42,7 +43,7 @@ lint: ## static check (a clean compile is the static check for C#)
 	$(MSB) -t:Rebuild -p:WarningLevel=4
 
 test: ## no automated tests - the game is the integration test
-	@echo "No test runner: copy bin/$(CONFIG)/VehicleKeeper.dll (+ Newtonsoft.Json.dll) into"
+	@echo "No test runner: copy bin/$(CONFIG)/VehicleKeeper.dll into"
 	@echo "the game's scripts/ folder and reload scripts in-game to test."
 	@echo "Then in-game: enter a vehicle, press Save key (X), open menu (T),"
 	@echo "Spawn/Despawn/Unsave, and confirm blips + persistence across reloads."
@@ -54,15 +55,15 @@ rebuild: ## clean then build
 package: build ## build, then zip a gta5-mods.com-ready archive into dist/
 	@rm -rf "$(STAGE)" "$(ZIP)"
 	@mkdir -p "$(STAGE)"
-	@# Ship the mod DLL plus every dependency the build emitted (Private refs),
+	@# Ship the mod DLL plus any dependency the build emitted (Private refs),
 	@# excluding the assemblies that come from the player's SHVDN/LemonUI install.
+	@# The mod has no third-party runtime dependency, so this is just the mod DLL.
 	@for dll in bin/$(CONFIG)/*.dll; do \
 		name=$$(basename "$$dll"); \
 		case " $(PLAYER_PROVIDED) " in *" $$name "*) continue;; esac; \
 		cp "$$dll" "$(STAGE)/"; \
 	done
 	@test -f "$(STAGE)/$(DLL)" || { echo "build output missing $(DLL)"; exit 1; }
-	@test -f "$(STAGE)/Newtonsoft.Json.dll" || { echo "Newtonsoft.Json.dll not in build output - drop it into ../packages/ (it is a Private reference and must ship)"; exit 1; }
 	@powershell -NoProfile -Command "Compress-Archive -Path '$(DIST)/scripts' -DestinationPath '$(ZIP)' -Force"
 	@rm -rf "$(STAGE)"
 	@echo "packaged $(ZIP):"

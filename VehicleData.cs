@@ -1,9 +1,17 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System.Xml.Serialization;
 using GTA;
 using GTA.Math;
 
 namespace VehicleKeeper {
+	// All DTO types below are persisted with the framework's XmlSerializer (no
+	// third-party JSON dependency). XmlSerializer requires a public parameterless
+	// constructor and public settable members on every serialized type, so each
+	// nested class keeps a parameterless ctor alongside the convenience ctor the
+	// capture code uses.
+
 	public class VehicleWindowData {
+		public VehicleWindowData() { }
 		public VehicleWindowData(VehicleWindowIndex index, bool isIntact) {
 			Index = index;
 			IsIntact = isIntact;
@@ -13,6 +21,7 @@ namespace VehicleKeeper {
 	}
 
 	public class VehicleDoorData {
+		public VehicleDoorData() { }
 		public VehicleDoorData(VehicleDoorIndex index, bool isBroken) {
 			Index = index;
 			IsBroken = isBroken;
@@ -22,6 +31,7 @@ namespace VehicleKeeper {
 	}
 
 	public class VehicleWheelData {
+		public VehicleWheelData() { }
 		public VehicleWheelData(
 			VehicleWheelBoneId index,
 			float health,
@@ -43,6 +53,7 @@ namespace VehicleKeeper {
 	}
 
 	public class VehicleNeonData {
+		public VehicleNeonData() { }
 		public VehicleNeonData(VehicleNeonLight index, bool enabled) {
 			Index = index;
 			Enabled = enabled;
@@ -52,6 +63,7 @@ namespace VehicleKeeper {
 	}
 
 	public class VehicleExtraData {
+		public VehicleExtraData() { }
 		public VehicleExtraData(int index, bool isOn) {
 			Index = index;
 			IsOn = isOn;
@@ -61,6 +73,7 @@ namespace VehicleKeeper {
 	}
 
 	public class VehicleModData {
+		public VehicleModData() { }
 		public VehicleModData(VehicleModType type, int index, bool variation) {
 			Type = type;
 			Index = index;
@@ -72,6 +85,7 @@ namespace VehicleKeeper {
 	}
 
 	public class VehicleToggleModData {
+		public VehicleToggleModData() { }
 		public VehicleToggleModData(VehicleToggleModType type, bool isInstalled) {
 			Type = type;
 			IsInstalled = isInstalled;
@@ -115,21 +129,47 @@ namespace VehicleKeeper {
 		public VehicleColor PearlescentColor { get; set; }
 		public VehicleColor RimColor { get; set; }
 		public VehicleColor TrimColor { get; set; }
-		public System.Drawing.Color CustomPrimaryColor { get; set; }
-		public System.Drawing.Color CustomSecondaryColor { get; set; }
+		public int ColorCombination { get; set; }
+		// Xenon headlight tint. The on/off state is a toggle mod (saved with the
+		// other toggle mods); only the color index needs its own field. -1 means
+		// the stock/default xenon color (no override).
+		public int XenonColorIndex { get; set; }
 		// Whether each slot uses a custom RGB paint vs. a standard palette color.
 		// Standard palette entries carry the finish (matte/metallic/pearlescent);
 		// forcing a custom RGB over a standard paint flattens that finish, so the
 		// restore must branch on these flags.
 		public bool IsPrimaryColorCustom { get; set; }
 		public bool IsSecondaryColorCustom { get; set; }
-		public System.Drawing.Color TireSmokeColor { get; set; }
-		public System.Drawing.Color NeonLightsColor { get; set; }
-		public int ColorCombination { get; set; }
-		// Xenon headlight tint. The on/off state is a toggle mod (saved with the
-		// other toggle mods); only the color index needs its own field. -1 means
-		// the stock/default xenon color (no override).
-		public int XenonColorIndex { get; set; }
+
+		// System.Drawing.Color is not round-tripped cleanly by XmlSerializer, so each
+		// color is serialized as a 32-bit ARGB int and the Color property is XmlIgnored.
+		// The capture/restore code keeps using the Color properties; only the on-disk
+		// representation differs.
+		[XmlIgnore] public System.Drawing.Color CustomPrimaryColor { get; set; }
+		[XmlIgnore] public System.Drawing.Color CustomSecondaryColor { get; set; }
+		[XmlIgnore] public System.Drawing.Color TireSmokeColor { get; set; }
+		[XmlIgnore] public System.Drawing.Color NeonLightsColor { get; set; }
+
+		[XmlElement("CustomPrimaryColor")]
+		public int CustomPrimaryColorArgb {
+			get => CustomPrimaryColor.ToArgb();
+			set => CustomPrimaryColor = System.Drawing.Color.FromArgb(value);
+		}
+		[XmlElement("CustomSecondaryColor")]
+		public int CustomSecondaryColorArgb {
+			get => CustomSecondaryColor.ToArgb();
+			set => CustomSecondaryColor = System.Drawing.Color.FromArgb(value);
+		}
+		[XmlElement("TireSmokeColor")]
+		public int TireSmokeColorArgb {
+			get => TireSmokeColor.ToArgb();
+			set => TireSmokeColor = System.Drawing.Color.FromArgb(value);
+		}
+		[XmlElement("NeonLightsColor")]
+		public int NeonLightsColorArgb {
+			get => NeonLightsColor.ToArgb();
+			set => NeonLightsColor = System.Drawing.Color.FromArgb(value);
+		}
 
 		// License plate
 		public string LicensePlate { get; set; }
@@ -168,10 +208,6 @@ namespace VehicleKeeper {
 		public bool IsCollisionProof { get; set; }
 		public bool IsMeleeProof { get; set; }
 		public bool IsSteamProof { get; set; }
-
-		// Bumpers
-		// public bool FrontBumperBrokenOff { get; set; }
-		// public bool RearBumperBrokenOff { get; set; }
 
 		// Other
 		public uint TowedVehicle { get; set; }

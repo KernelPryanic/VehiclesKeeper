@@ -157,7 +157,7 @@ namespace VehicleKeeper {
 			BlipDistanceItem.SelectedItem = BlipDistanceItem.Items.First(x => x == BlipDistance);
 
 			string basePath = Config.GetValue("Configuration", "VehiclePersistencePath", defaultPersistencePath);
-			JsonVehicleStorage.Initialize(basePath);
+			XmlVehicleStorage.Initialize(basePath);
 
 			// Clear existing blips from previously managed vehicles
 			ClearExistingBlips();
@@ -177,7 +177,7 @@ namespace VehicleKeeper {
 		}
 
 		private void ClearExistingBlips() {
-			List<VehicleData> savedVehicles = JsonVehicleStorage.GetVehicles();
+			List<VehicleData> savedVehicles = XmlVehicleStorage.GetVehicles();
 			foreach (var vehicleData in savedVehicles) {
 				Vehicle vehicle = (Vehicle)Entity.FromHandle(vehicleData.Handle);
 				if (vehicle != null) {
@@ -282,7 +282,7 @@ namespace VehicleKeeper {
 				SetBlipOnVehicle(v);
 				v.IsPersistent = true;
 				SpawnedVehicles.Add(vd);
-				JsonVehicleStorage.SaveVehicle(vd);
+				XmlVehicleStorage.SaveVehicle(vd);
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 				return false;
@@ -298,7 +298,7 @@ namespace VehicleKeeper {
 					v.IsPersistent = false;
 				}
 				SpawnedVehicles.Remove(vd);
-				JsonVehicleStorage.RemoveVehicle(vd);
+				XmlVehicleStorage.RemoveVehicle(vd);
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 				return false;
@@ -315,7 +315,7 @@ namespace VehicleKeeper {
 				if (!SpawnedVehicles.Contains(vd)) {
 					SpawnedVehicles.Add(vd);
 				}
-				JsonVehicleStorage.UpdateVehicle(vd);
+				XmlVehicleStorage.UpdateVehicle(vd);
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 				return false;
@@ -360,20 +360,20 @@ namespace VehicleKeeper {
 		}
 
 		void LoadVehicles() {
-			List<VehicleData> jsonVehicles = new List<VehicleData>();
+			List<VehicleData> savedVehicles = new List<VehicleData>();
 
 			try {
-				jsonVehicles = JsonVehicleStorage.GetVehicles();
+				savedVehicles = XmlVehicleStorage.GetVehicles();
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 			}
 
 			try {
-				for (int i = 0; i < jsonVehicles.Count(); i++) {
-					if (!SpawnedVehicles.Contains(jsonVehicles[i])) {
-						SpawnVehicle(jsonVehicles[i]);
+				for (int i = 0; i < savedVehicles.Count(); i++) {
+					if (!SpawnedVehicles.Contains(savedVehicles[i])) {
+						SpawnVehicle(savedVehicles[i]);
 					} else {
-						GTA.UI.Notification.PostTicker($"Vehicle {jsonVehicles[i].VehicleName} {jsonVehicles[i].LicensePlate.Trim()} is already loaded", false);
+						GTA.UI.Notification.PostTicker($"Vehicle {savedVehicles[i].VehicleName} {savedVehicles[i].LicensePlate.Trim()} is already loaded", false);
 					}
 				}
 			} catch (Exception e) {
@@ -384,7 +384,7 @@ namespace VehicleKeeper {
 		void UnsaveVehicles() {
 			// Drain a snapshot of the saved list: UnsaveVehicle removes from the
 			// underlying store, so iterate a copy rather than the live list.
-			foreach (VehicleData saved in JsonVehicleStorage.GetVehicles().ToList()) {
+			foreach (VehicleData saved in XmlVehicleStorage.GetVehicles().ToList()) {
 				// If the vehicle is currently spawned, use its tracked instance so
 				// persistency and its blip are cleared correctly.
 				(Vehicle v, VehicleData vd) = GetSpawnedIfPossible(saved);
@@ -410,7 +410,7 @@ namespace VehicleKeeper {
 			if (player.IsInVehicle()) {
 				Vehicle currentVeh = player.CurrentVehicle;
 				VehicleData vd = VehicleUtilities.CreateInfo(currentVeh);
-				List<VehicleData> savedVehicles = JsonVehicleStorage.GetVehicles();
+				List<VehicleData> savedVehicles = XmlVehicleStorage.GetVehicles();
 				if (!savedVehicles.Contains(vd)) {
 					if (savedVehicles.Count() < VehicleLimit) {
 						SaveVehicle(currentVeh, vd);
@@ -433,7 +433,7 @@ namespace VehicleKeeper {
 			if (player.IsInVehicle()) {
 				Vehicle currentVeh = player.CurrentVehicle;
 				VehicleData vd = VehicleUtilities.CreateInfo(currentVeh);
-				List<VehicleData> savedVehicles = JsonVehicleStorage.GetVehicles();
+				List<VehicleData> savedVehicles = XmlVehicleStorage.GetVehicles();
 
 				if (savedVehicles.Contains(vd)) {
 					UnsaveVehicle(currentVeh, vd);
@@ -489,7 +489,7 @@ namespace VehicleKeeper {
 			if (!(VehicleMenu.Items[VehicleMenu.SelectedIndex] is NativeListItem<string> item)) {
 				return;
 			}
-			VehicleData vd = JsonVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(item.Title));
+			VehicleData vd = XmlVehicleStorage.GetVehicle(VehicleUtilities.GetHashString(item.Title));
 			if (vd == null) {
 				GTA.UI.Notification.PostTicker($"This vehicle doesn't exist in your list", false);
 				return;
@@ -578,7 +578,7 @@ namespace VehicleKeeper {
 			}
 
 			// Opening: rebuild the saved-vehicle list from the store.
-			List<VehicleData> savedVehicles = JsonVehicleStorage.GetVehicles();
+			List<VehicleData> savedVehicles = XmlVehicleStorage.GetVehicles();
 			VehicleMenu.Clear();
 			foreach (VehicleData vd in savedVehicles) {
 				NativeListItem<string> vehicleItem = new NativeListItem<string>($"{vd.VehicleName} {vd.LicensePlate.Trim()}",
@@ -601,7 +601,7 @@ namespace VehicleKeeper {
 		}
 
 		void MainMenuInit() {
-			MainMenu = new NativeMenu("Vehicle Keeper", "Version 3.7.1");
+			MainMenu = new NativeMenu("Vehicle Keeper", "Version 4.0.0");
 
 			VehicleMenu = new NativeMenu("Saved Vehicles", "Saved Vehicles");
 			MainMenu.AddSubMenu(VehicleMenu);

@@ -1,17 +1,26 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
-using Newtonsoft.Json;
+using System.Xml.Serialization;
 
 namespace VehicleKeeper {
-	public static class JsonVehicleStorage {
+	// Persists the saved-vehicle list to one XML file. XmlSerializer is a framework
+	// built-in (System.Xml.Serialization), so the mod ships as a single DLL with no
+	// third-party JSON dependency.
+	//
+	// Persistence tolerates first run and corruption: a missing file is the valid
+	// empty state, a corrupt file logs and reads as empty. Reads never throw. An
+	// explicit Loaded flag tracks load-state so a genuinely-empty store doesn't
+	// re-hit (and re-throw on) the disk every call.
+	public static class XmlVehicleStorage {
 		private static string BasePath = string.Empty;
-		private static readonly string FileName = "preserved-vehicles.json";
+		private static readonly string FileName = "preserved-vehicles.xml";
+		private static readonly XmlSerializer Serializer = new XmlSerializer(typeof(List<VehicleData>));
 		private static List<VehicleData> Cache = new List<VehicleData>();
 		// Tracks whether the cache has been hydrated from disk. We can't key off
 		// Cache.Count, because a genuinely-empty store (zero saved vehicles, the
 		// first-run case) would otherwise re-read the file on every call and throw
-		// FileNotFoundException each time.
+		// each time.
 		private static bool Loaded;
 
 		public static void Initialize(string path) {
@@ -35,10 +44,9 @@ namespace VehicleKeeper {
 			string filePath = GetFilePath();
 			if (File.Exists(filePath)) {
 				try {
-					string json = File.ReadAllText(filePath);
-					Cache = JsonConvert.DeserializeObject<List<VehicleData>>(json, new JsonSerializerSettings {
-						ReferenceLoopHandling = ReferenceLoopHandling.Ignore
-					}) ?? new List<VehicleData>();
+					using (var reader = new StreamReader(filePath)) {
+						Cache = (List<VehicleData>)Serializer.Deserialize(reader) ?? new List<VehicleData>();
+					}
 				} catch (Exception e) {
 					// Corrupt or unreadable file: log and start from empty rather
 					// than re-reading (and re-throwing) on every subsequent call.
@@ -59,23 +67,14 @@ namespace VehicleKeeper {
 			if (!Cache.Contains(vd)) {
 				Cache.Add(vd);
 			}
-
-			string json = JsonConvert.SerializeObject(Cache, new JsonSerializerSettings {
-				ReferenceLoopHandling = ReferenceLoopHandling.Ignore
-			});
-
-			File.WriteAllText(GetFilePath(), json);
+			Flush();
 		}
 
 		public static void RemoveVehicle(VehicleData vd) {
 			ThrowExceptionWhenBasePathDoesNotExist();
 			EnsureLoaded();
 			Cache.Remove(vd);
-			string json = JsonConvert.SerializeObject(Cache, new JsonSerializerSettings {
-				ReferenceLoopHandling = ReferenceLoopHandling.Ignore
-			});
-
-			File.WriteAllText(GetFilePath(), json);
+			Flush();
 		}
 
 		public static void UpdateVehicle(VehicleData vd) {
@@ -83,12 +82,7 @@ namespace VehicleKeeper {
 			EnsureLoaded();
 			Cache.Remove(vd);
 			Cache.Add(vd);
-
-			string json = JsonConvert.SerializeObject(Cache, new JsonSerializerSettings {
-				ReferenceLoopHandling = ReferenceLoopHandling.Ignore
-			});
-
-			File.WriteAllText(GetFilePath(), json);
+			Flush();
 		}
 
 		public static VehicleData GetVehicle(string ID) {
@@ -101,8 +95,14 @@ namespace VehicleKeeper {
 			return Cache;
 		}
 
+		private static void Flush() {
+			using (var writer = new StreamWriter(GetFilePath())) {
+				Serializer.Serialize(writer, Cache);
+			}
+		}
+
 		private static string GetFilePath() {
-			return $"{BasePath.TrimEnd('/')}/{FileName}";
+			return Path.Combine(BasePath, FileName);
 		}
 
 		public static void ThrowExceptionWhenBasePathDoesNotExist() {
