@@ -584,8 +584,13 @@ namespace VehicleKeeper {
 			}
 		}
 
+		// A binding of Keys.None means "disabled" - never act on it. Set a key to
+		// None in the INI (e.g. SaveKey=None) to free it up. A blank/unparseable
+		// value does NOT disable; it reverts to the default for that key.
+		static bool IsDisabled(Keys key) => key == Keys.None;
+
 		public void OnKeyDown(object sender, KeyEventArgs e) {
-			if (e.KeyCode != MenuKey) {
+			if (IsDisabled(MenuKey) || e.KeyCode != MenuKey) {
 				return;
 			}
 
@@ -614,19 +619,15 @@ namespace VehicleKeeper {
 		}
 
 		public void OnKeyUp(object sender, KeyEventArgs e) {
-			Keys[] keys = new[] { SaveKey, UnsaveKey };
-
-			if (keys.Any(x => x == e.KeyCode)) {
-				if (e.KeyCode == SaveKey) {
-					SaveCurrentVehicle();
-				} else if (e.KeyCode == UnsaveKey) {
-					UnsaveCurrentVehicle();
-				}
+			if (!IsDisabled(SaveKey) && e.KeyCode == SaveKey) {
+				SaveCurrentVehicle();
+			} else if (!IsDisabled(UnsaveKey) && e.KeyCode == UnsaveKey) {
+				UnsaveCurrentVehicle();
 			}
 		}
 
 		void MainMenuInit() {
-			MainMenu = new NativeMenu("Vehicle Keeper", "Version 4.1.0");
+			MainMenu = new NativeMenu("Vehicle Keeper", "Version 4.2.0");
 
 			VehicleMenu = new NativeMenu("Saved Vehicles", "Saved Vehicles");
 			MainMenu.AddSubMenu(VehicleMenu);
