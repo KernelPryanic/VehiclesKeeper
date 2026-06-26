@@ -137,17 +137,20 @@ namespace VehicleKeeper {
 			Config = ScriptSettings.Load(ScriptPaths.For("VehicleKeeper.ini"));
 
 			// Define default values
-			SetConfigValueIfNotDefined("Configuration", "MenuKey", Keys.T);
-			SetConfigValueIfNotDefined("Configuration", "SaveKey", Keys.X);
-			SetConfigValueIfNotDefined("Configuration", "UnsaveKey", Keys.Z);
+			// Menu opens on Shift+T by default. Save/Unsave quick-keys are unbound by
+			// default (Keys.None) so they don't claim plain X/Z; users can set any
+			// key or combo (e.g. SaveKey=Shift,X) in the INI if they want them.
+			SetConfigValueIfNotDefined("Configuration", "MenuKey", Keys.Shift | Keys.T);
+			SetConfigValueIfNotDefined("Configuration", "SaveKey", Keys.None);
+			SetConfigValueIfNotDefined("Configuration", "UnsaveKey", Keys.None);
 			SetConfigValueIfNotDefined("Configuration", "BlipColor", BlipColor.Blue);
 			SetConfigValueIfNotDefined("Configuration", "BlipDistance", 500f);
 			SetConfigValueIfNotDefined("Configuration", "VehiclePersistencePath", defaultPersistencePath);
 
 			// Read configuration values
-			MenuKey = Config.GetValue("Configuration", "MenuKey", Keys.T);
-			SaveKey = Config.GetValue("Configuration", "SaveKey", Keys.X);
-			UnsaveKey = Config.GetValue("Configuration", "UnsaveKey", Keys.Z);
+			MenuKey = Config.GetValue("Configuration", "MenuKey", Keys.Shift | Keys.T);
+			SaveKey = Config.GetValue("Configuration", "SaveKey", Keys.None);
+			UnsaveKey = Config.GetValue("Configuration", "UnsaveKey", Keys.None);
 			BlipColor = Config.GetValue("Configuration", "BlipColor", BlipColor.Blue);
 			BlipColorListItem.SelectedItem = BlipColorListItem.Items.First(x => x == BlipColor);
 			BlipDistance = Config.GetValue("Configuration", "BlipDistance", 500f);
@@ -590,7 +593,9 @@ namespace VehicleKeeper {
 		static bool IsDisabled(Keys key) => key == Keys.None;
 
 		public void OnKeyDown(object sender, KeyEventArgs e) {
-			if (IsDisabled(MenuKey) || e.KeyCode != MenuKey) {
+			// Compare KeyData (key + active modifier flags) so a combo like Shift+T
+			// matches as configured; for a plain key it equals the key alone.
+			if (IsDisabled(MenuKey) || e.KeyData != MenuKey) {
 				return;
 			}
 
@@ -619,15 +624,24 @@ namespace VehicleKeeper {
 		}
 
 		public void OnKeyUp(object sender, KeyEventArgs e) {
-			if (!IsDisabled(SaveKey) && e.KeyCode == SaveKey) {
+			// Compare KeyData (key + modifiers) so a configured combo matches; a plain
+			// key equals the key alone. Keys.None means the quick-key is unbound.
+			if (!IsDisabled(SaveKey) && e.KeyData == SaveKey) {
 				SaveCurrentVehicle();
-			} else if (!IsDisabled(UnsaveKey) && e.KeyCode == UnsaveKey) {
+			} else if (!IsDisabled(UnsaveKey) && e.KeyData == UnsaveKey) {
 				UnsaveCurrentVehicle();
 			}
 		}
 
+		// The menu subtitle's version comes from the assembly (csproj <Version>), so a
+		// release only needs to bump the csproj — no hardcoded string to keep in sync.
+		static string MenuVersion() {
+			Version v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+			return $"Version {v.Major}.{v.Minor}.{v.Build}";
+		}
+
 		void MainMenuInit() {
-			MainMenu = new NativeMenu("Vehicle Keeper", "Version 4.2.0");
+			MainMenu = new NativeMenu("Vehicle Keeper", MenuVersion());
 
 			VehicleMenu = new NativeMenu("Saved Vehicles", "Saved Vehicles");
 			MainMenu.AddSubMenu(VehicleMenu);
