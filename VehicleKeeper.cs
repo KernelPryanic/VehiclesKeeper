@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows.Forms;
 using GTA;
 using GTA.Math;
+using LemonUI;
 using LemonUI.Menus;
 
 namespace VehicleKeeper {
@@ -115,10 +116,22 @@ namespace VehicleKeeper {
 		readonly Keys UnsaveKey;
 		readonly Keys MenuKey;
 
+		// Set while the constructor seeds menu selections from the INI: LemonUI fires
+		// ItemChanged when SelectedIndex is set, so the inline handlers check this to
+		// skip writing the just-loaded value straight back (and logging it) on startup.
+		bool Initializing = true;
+
+		// One pool processes every menu each tick, so adding a submenu never means
+		// remembering to wire up its own Process call.
+		readonly ObjectPool Pool = new ObjectPool();
 		NativeMenu MainMenu;
 		NativeMenu VehicleMenu;
+		NativeMenu BlipsMenu;
+		NativeMenu AutoSaveMenu;
 		NativeListItem<BlipColor> BlipColorListItem;
 		NativeListItem<float> BlipDistanceItem;
+		NativeCheckboxItem AutoSaveEnabledItem;
+		NativeListItem<float> AutoSaveItem;
 		NativeListItem<LogLevel> LogLevelItem;
 
 		int Period;
@@ -133,9 +146,12 @@ namespace VehicleKeeper {
 		// Full re-capture (colors, damage, mods — everything, not just position) runs
 		// on a wall-clock interval while driving so appearance changes survive even if
 		// the player quits mid-drive without exiting. GameTime (ms) keeps the cadence
-		// frame-rate independent.
+		// frame-rate independent. Both the interval and an on/off switch are
+		// user-configurable (see AutoSaveItem / AutoSaveEnabledItem); when off, only an
+		// explicit Save persists appearance.
 		int LastFullCaptureTime;
-		const int FullCaptureIntervalMs = 10000;
+		bool AutoSaveEnabled;
+		float AutoSaveInterval;
 
 		BlipColor BlipColor = BlipColor.Blue;
 		float BlipDistance;
@@ -166,6 +182,16 @@ namespace VehicleKeeper {
 			SetConfigValueIfNotDefined("Configuration", "BlipColor", BlipColor.Blue);
 			SetConfigValueIfNotDefined("Configuration", "BlipDistance", 500f);
 			SetConfigValueIfNotDefined("Configuration", "VehiclePersistencePath", defaultPersistencePath);
+			// Can't use SetConfigValueIfNotDefined for a bool defaulting to true: its
+			// "unset == default(T)" test can't tell a user's explicit false from an
+			// absent key, and would clobber a chosen false back to true. Detect absence
+			// by reading with two opposite fallbacks — they differ only when the key is
+			// missing — and seed only then.
+			if (Config.GetValue("AutoSave", "Enabled", true) && !Config.GetValue("AutoSave", "Enabled", false)) {
+				Config.SetValue("AutoSave", "Enabled", true);
+				Config.Save();
+			}
+			SetConfigValueIfNotDefined("AutoSave", "IntervalSeconds", 10f);
 			SetConfigValueIfNotDefined("Logging", "Level", nameof(LogLevel.Info));
 
 			// Read configuration values
@@ -176,6 +202,14 @@ namespace VehicleKeeper {
 			BlipColorListItem.SelectedItem = BlipColorListItem.Items.First(x => x == BlipColor);
 			BlipDistance = Config.GetValue("Configuration", "BlipDistance", 500f);
 			BlipDistanceItem.SelectedItem = BlipDistanceItem.Items.First(x => x == BlipDistance);
+
+			AutoSaveEnabled = Config.GetValue("AutoSave", "Enabled", true);
+			AutoSaveEnabledItem.Checked = AutoSaveEnabled;
+			AutoSaveInterval = Config.GetValue("AutoSave", "IntervalSeconds", 10f);
+			// Fall back to the default option if the INI holds a value not in the list,
+			// so a hand-edited interval never leaves the item unselected.
+			int intervalIndex = AutoSaveItem.Items.FindIndex(x => x == AutoSaveInterval);
+			AutoSaveItem.SelectedIndex = intervalIndex >= 0 ? intervalIndex : AutoSaveItem.Items.FindIndex(x => x == 10f);
 
 			// [Logging] Level gates the log file: Info (default) for normal operation,
 			// Debug to add the per-tick/verbose diagnostics when triaging an issue.
@@ -188,9 +222,13 @@ namespace VehicleKeeper {
 
 			// One-line config summary so every report shows the resolved settings.
 			// (The saved-vehicle count is logged by the storage layer as it loads.)
-			Logger.LogBanner($"Config: menuKey={MenuKey} saveKey={SaveKey} unsaveKey={UnsaveKey} blipColor={BlipColor} blipDistance={BlipDistance} logLevel={Logger.Threshold}.");
+			Logger.LogBanner($"Config: menuKey={MenuKey} saveKey={SaveKey} unsaveKey={UnsaveKey} blipColor={BlipColor} blipDistance={BlipDistance} autoSave={AutoSaveEnabled}/{AutoSaveInterval}s logLevel={Logger.Threshold}.");
 
 			ClearExistingBlips();
+
+			// Menu selections are seeded; real user changes past this point should
+			// persist and log.
+			Initializing = false;
 
 			Tick += OnTick;
 			KeyDown += OnKeyDown;
@@ -236,10 +274,7 @@ namespace VehicleKeeper {
 
 		public void OnTick(object sender, EventArgs eventArgs) {
 			try {
-				if (MainMenu.Visible || VehicleMenu.Visible) {
-					MainMenu.Process();
-					VehicleMenu.Process();
-				}
+				Pool.Process();
 
 				if (Period <= 60) {
 					Period++;
@@ -268,12 +303,14 @@ namespace VehicleKeeper {
 						: "Entered a named zone — drift persistence resumed.");
 				}
 
-				// Flush a full re-capture the moment the player leaves the tracked car,
-				// so appearance/damage changes made during the drive are saved at the
-				// point you'd notice them missing. Clearing LastVehicle also stops drift
-				// from persisting a car the player no longer occupies.
+				// On leaving the tracked car, clear LastVehicle (stops drift persisting a
+				// car no longer occupied) and, when auto-save is on, flush a full
+				// re-capture so drive-time appearance/damage changes are saved at the
+				// point you'd notice them missing.
 				if (LastVehicle != null && !player.IsInVehicle(LastVehicle)) {
-					RecaptureVehicle(LastVehicle);
+					if (AutoSaveEnabled) {
+						RecaptureVehicle(LastVehicle);
+					}
 					LastVehicle = null;
 				}
 
@@ -290,7 +327,7 @@ namespace VehicleKeeper {
 					}
 					// Full re-capture on a wall-clock interval so a mid-drive quit still
 					// keeps the latest appearance, not just position (drift's remit).
-					if (Game.GameTime - LastFullCaptureTime >= FullCaptureIntervalMs) {
+					if (AutoSaveEnabled && Game.GameTime - LastFullCaptureTime >= AutoSaveInterval * 1000f) {
 						RecaptureVehicle(LastVehicle);
 					}
 				}
@@ -629,39 +666,12 @@ namespace VehicleKeeper {
 						case "Unsave All":
 							UnsaveVehicles();
 							break;
-						case "Blip Color":
-							BlipColor = BlipColorListItem.SelectedItem;
-							Config.SetValue("Configuration", "BlipColor", BlipColor);
-							Config.Save();
-							Logger.Log($"Blip color set to {BlipColor}.");
-							// Snapshot the list (GetSpawnedIfPossible touches no shared
-							// state here, but match the file's iterate-a-copy convention)
-							// and guard each handle with .Exists(): a despawned vehicle's
-							// handle is non-null but throws on .AttachedBlip.
-							foreach (VehicleData vd in SpawnedVehicles.ToList()) {
-								(Vehicle v, _) = GetSpawnedIfPossible(vd);
-								if (v != null && v.Exists() && v.AttachedBlip != null) {
-									v.AttachedBlip.Color = BlipColor;
-								}
-							}
-							break;
-						case "Blip Distance":
-							BlipDistance = BlipDistanceItem.SelectedItem;
-							Config.SetValue("Configuration", "BlipDistance", BlipDistance);
-							Config.Save();
-							Logger.Log(BlipDistance < 0f
-								? "Blip distance set to always-show."
-								: $"Blip distance set to {BlipDistance}m.");
-							break;
 						case "Log Level":
 							Logger.Threshold = LogLevelItem.SelectedItem;
 							Config.SetValue("Logging", "Level", Logger.Threshold.ToString());
 							Config.Save();
 							// Banner so the change is visible even after dropping to Error.
 							Logger.LogBanner($"Log level set to {Logger.Threshold}.");
-							break;
-						case "Exit":
-							MainMenu.Visible = false;
 							break;
 					}
 				}
@@ -768,11 +778,12 @@ namespace VehicleKeeper {
 				return;
 			}
 
-			// Same key toggles the menu. Closing must also dismiss the submenu, or
-			// pressing the key while it's open would leave the submenu on screen.
-			if (MainMenu.Visible || VehicleMenu.Visible) {
-				MainMenu.Visible = false;
-				VehicleMenu.Visible = false;
+			// Same key toggles the menu. Closing any open menu in the pool dismisses
+			// submenus too, so a reopen always starts at the main menu.
+			if (Pool.AreAnyVisible) {
+				foreach (NativeMenu menu in new[] { MainMenu, VehicleMenu, BlipsMenu, AutoSaveMenu }) {
+					menu.Visible = false;
+				}
 				return;
 			}
 
@@ -811,8 +822,10 @@ namespace VehicleKeeper {
 
 		void MainMenuInit() {
 			MainMenu = new NativeMenu("Vehicle Keeper", MenuVersion());
+			Pool.Add(MainMenu);
 
 			VehicleMenu = new NativeMenu("Saved Vehicles", "Saved Vehicles");
+			Pool.Add(VehicleMenu);
 			MainMenu.AddSubMenu(VehicleMenu);
 			NativeItem saveCurrent = new NativeItem("Save Current Vehicle");
 			MainMenu.Add(saveCurrent);
@@ -822,21 +835,94 @@ namespace VehicleKeeper {
 			MainMenu.Add(despawnVehicles);
 			NativeItem unsaveButton = new NativeItem("Unsave All");
 			MainMenu.Add(unsaveButton);
-			BlipColorListItem = new NativeListItem<BlipColor>("Blip Color", BlipColor.Blue, BlipColor.Green, BlipColor.Purple, BlipColor.Red, BlipColor.Orange, BlipColor.Yellow, BlipColor.Pink, BlipColor.White);
-			MainMenu.Add(BlipColorListItem);
-			BlipDistanceItem = new NativeListItem<float>("Blip Distance", -1f, 10f, 50f, 100f, 200f, 500f, 1000f, 2000f, 5000f, 10000f, 20000f);
-			MainMenu.Add(BlipDistanceItem);
+
+			BlipsMenuInit();
+			AutoSaveMenuInit();
+
 			// Info is the normal level; Debug adds the verbose per-tick diagnostics for
 			// bug reports; Error quiets everything but failures (banners still write).
 			LogLevelItem = new NativeListItem<LogLevel>("Log Level", LogLevel.Info, LogLevel.Debug, LogLevel.Error) {
 				Description = "Verbosity of VehicleKeeper.log. Select to apply."
 			};
 			MainMenu.Add(LogLevelItem);
-			NativeItem exitButton = new NativeItem("Exit");
-			MainMenu.Add(exitButton);
 
 			MainMenu.ItemActivated += OnMainMenuItemSelect;
 			VehicleMenu.ItemActivated += OnVehicleMenuItemSelect;
+		}
+
+		// Blip settings in their own submenu, with handlers wired inline (like
+		// AutoSaveMenuInit) instead of the older main-menu title-switch.
+		void BlipsMenuInit() {
+			BlipsMenu = new NativeMenu("Blips", "Blips");
+			Pool.Add(BlipsMenu);
+			NativeSubmenuItem blipsItem = MainMenu.AddSubMenu(BlipsMenu);
+			blipsItem.Description = "Map blip color and how far saved vehicles stay visible.";
+
+			BlipColorListItem = new NativeListItem<BlipColor>("Blip Color", BlipColor.Blue, BlipColor.Green, BlipColor.Purple, BlipColor.Red, BlipColor.Orange, BlipColor.Yellow, BlipColor.Pink, BlipColor.White);
+			BlipColorListItem.ItemChanged += (s, a) => {
+				if (Initializing) { return; }
+				BlipColor = BlipColorListItem.SelectedItem;
+				Config.SetValue("Configuration", "BlipColor", BlipColor);
+				Config.Save();
+				Logger.Log($"Blip color set to {BlipColor}.");
+				// Recolor live blips now. Snapshot the list to match the file's
+				// iterate-a-copy convention, and guard each handle with .Exists(): a
+				// despawned vehicle's handle is non-null but throws on .AttachedBlip.
+				foreach (VehicleData vd in SpawnedVehicles.ToList()) {
+					(Vehicle v, _) = GetSpawnedIfPossible(vd);
+					if (v != null && v.Exists() && v.AttachedBlip != null) {
+						v.AttachedBlip.Color = BlipColor;
+					}
+				}
+			};
+			BlipsMenu.Add(BlipColorListItem);
+
+			BlipDistanceItem = new NativeListItem<float>("Blip Distance", -1f, 10f, 50f, 100f, 200f, 500f, 1000f, 2000f, 5000f, 10000f, 20000f);
+			BlipDistanceItem.ItemChanged += (s, a) => {
+				if (Initializing) { return; }
+				BlipDistance = BlipDistanceItem.SelectedItem;
+				Config.SetValue("Configuration", "BlipDistance", BlipDistance);
+				Config.Save();
+				Logger.Log(BlipDistance < 0f
+					? "Blip distance set to always-show."
+					: $"Blip distance set to {BlipDistance}m.");
+			};
+			BlipsMenu.Add(BlipDistanceItem);
+		}
+
+		// The auto-save settings live in their own submenu: the on/off switch and the
+		// re-capture interval belong together and would clutter the main menu. Handlers
+		// are wired inline here (LemonUI's ItemChanged/CheckboxChanged) rather than in
+		// the title-switch used by the older main-menu items.
+		void AutoSaveMenuInit() {
+			AutoSaveMenu = new NativeMenu("Auto-Save", "Auto-Save");
+			Pool.Add(AutoSaveMenu);
+			NativeSubmenuItem autoSaveItem = MainMenu.AddSubMenu(AutoSaveMenu);
+			autoSaveItem.Description = "Automatically re-save a driven vehicle's state on an interval and on exit.";
+
+			AutoSaveEnabledItem = new NativeCheckboxItem("Enabled", AutoSaveEnabled) {
+				Description = "When off, appearance changes persist only on an explicit Save."
+			};
+			AutoSaveEnabledItem.CheckboxChanged += (s, a) => {
+				if (Initializing) { return; }
+				AutoSaveEnabled = AutoSaveEnabledItem.Checked;
+				Config.SetValue("AutoSave", "Enabled", AutoSaveEnabled);
+				Config.Save();
+				Logger.Log($"Auto-save {(AutoSaveEnabled ? "enabled" : "disabled")}.");
+			};
+			AutoSaveMenu.Add(AutoSaveEnabledItem);
+
+			AutoSaveItem = new NativeListItem<float>("Interval", 1f, 2f, 5f, 10f, 20f, 30f, 60f, 90f, 120f) {
+				Description = "Seconds between automatic re-saves while driving."
+			};
+			AutoSaveItem.ItemChanged += (s, a) => {
+				if (Initializing) { return; }
+				AutoSaveInterval = AutoSaveItem.SelectedItem;
+				Config.SetValue("AutoSave", "IntervalSeconds", AutoSaveInterval);
+				Config.Save();
+				Logger.Log($"Auto-save interval set to {AutoSaveInterval}s.");
+			};
+			AutoSaveMenu.Add(AutoSaveItem);
 		}
 	}
 }
