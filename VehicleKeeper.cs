@@ -185,6 +185,24 @@ namespace VehicleKeeper {
 			Tick += OnTick;
 			KeyDown += OnKeyDown;
 			KeyUp += OnKeyUp;
+			// Strip our blips on teardown (hot reload / unload). SHVDN keeps the
+			// spawned vehicles alive across a reload, so their blips would otherwise
+			// linger on the map with no script left to manage them.
+			Aborted += OnAborted;
+		}
+
+		void OnAborted(object sender, EventArgs e) {
+			// Use the live in-memory list: the stored handles may be stale, but these
+			// are the vehicles this session actually blipped.
+			foreach (VehicleData vd in SpawnedVehicles) {
+				try {
+					Vehicle v = (Vehicle)Entity.FromHandle(vd.Handle);
+					RemoveBlipFromVehicle(v);
+				} catch (Exception ex) {
+					// Best-effort on teardown: keep clearing the rest even if one throws.
+					Logger.LogError(ex.ToString());
+				}
+			}
 		}
 
 		private void SetConfigValueIfNotDefined<T>(string section, string key, T defaultValue) {
