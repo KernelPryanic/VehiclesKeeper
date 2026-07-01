@@ -208,7 +208,6 @@ namespace VehicleKeeper {
 		// Engine
 		public float EngineHealth { get; set; }
 		public bool IsEngineRunning { get; set; }
-		public bool IsDriveable { get; set; }
 
 		// Proofs
 		public bool IsBulletProof { get; set; }

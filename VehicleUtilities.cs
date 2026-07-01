@@ -83,10 +83,6 @@ namespace VehicleKeeper {
 				AreHighBeamsOn = vehicle.AreHighBeamsOn,
 				IsSearchLightOn = vehicle.IsSearchLightOn,
 
-				// Bumpers
-				// VehicleData.FrontBumperBrokenOff = vehicle.IsFrontBumperBrokenOff;
-				// VehicleData.RearBumperBrokenOff = vehicle.IsRearBumperBrokenOff;
-
 				// Fuel/Oil
 				PetrolTankHealth = Math.Max(vehicle.PetrolTankHealth, (float)750),
 				FuelLevel = vehicle.FuelLevel,
@@ -101,7 +97,6 @@ namespace VehicleKeeper {
 				// Engine
 				EngineHealth = Math.Max(vehicle.EngineHealth, (float)20),
 				IsEngineRunning = vehicle.IsEngineRunning,
-				IsDriveable = vehicle.IsDriveable,
 
 				// Proofs
 				CanTiresBurst = vehicle.CanTiresBurst,
@@ -338,6 +333,10 @@ namespace VehicleKeeper {
 			vehicle.IsUndriveable = false;
 			Function.Call(Hash.SET_VEHICLE_ENGINE_ON, vehicle, data.IsEngineRunning, true, true);
 
+			// Spawn with the radio off; the station isn't preserved (no reliable
+			// per-vehicle read), and silence is the predictable default.
+			Function.Call(Hash.SET_VEHICLE_RADIO_ENABLED, vehicle, false);
+
 			// Proofs
 			vehicle.IsBulletProof = data.IsBulletProof;
 			vehicle.CanTiresBurst = data.CanTiresBurst;
@@ -457,25 +456,6 @@ namespace VehicleKeeper {
 			// Roof open/closed state goes last: on convertibles the roof is also a
 			// mod slot, so set the state after the mods are applied or it gets reset.
 			vehicle.RoofState = data.RoofState;
-
-			// // Bumpers
-			// Action<string> BreakBumper = x => {
-			//     int value = Function.Call<int>(Hash._0xFB71170B7E76ACBA, new InputArgument[2] {
-			//         vehicle,
-			//         x
-			//     });
-			//     Vector3 loc = Function.Call<Vector3>(Hash._0x44A8FCB8ED227738, new InputArgument[2] {
-			//         vehicle,
-			//         value
-			//     });
-			//     vehicle.ApplyDamage(loc, 1000f, 10f);
-			// };
-			// if (data.FrontBumperBrokenOff) {
-			//     BreakBumper("bumper_f");
-			// }
-			// if (data.RearBumperBrokenOff) {
-			//     BreakBumper("bumper_r");
-			// }
 
 			return vehicle;
 		}
