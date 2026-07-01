@@ -119,6 +119,7 @@ namespace VehicleKeeper {
 		NativeMenu VehicleMenu;
 		NativeListItem<BlipColor> BlipColorListItem;
 		NativeListItem<float> BlipDistanceItem;
+		NativeListItem<LogLevel> LogLevelItem;
 
 		int Period;
 		readonly List<VehicleData> SpawnedVehicles = new List<VehicleData>();
@@ -171,7 +172,9 @@ namespace VehicleKeeper {
 
 			// [Logging] Level gates the log file: Info (default) for normal operation,
 			// Debug to add the per-tick/verbose diagnostics when triaging an issue.
-			Logger.Threshold = ParseLogLevel(Config.GetValue("Logging", "Level", nameof(LogLevel.Info)));
+			LogLevel logLevel = ParseLogLevel(Config.GetValue("Logging", "Level", nameof(LogLevel.Info)));
+			LogLevelItem.SelectedIndex = LogLevelItem.Items.FindIndex(x => x == logLevel);
+			Logger.Threshold = logLevel;
 
 			string basePath = Config.GetValue("Configuration", "VehiclePersistencePath", defaultPersistencePath);
 			XmlVehicleStorage.Initialize(basePath);
@@ -600,6 +603,13 @@ namespace VehicleKeeper {
 								? "Blip distance set to always-show."
 								: $"Blip distance set to {BlipDistance}m.");
 							break;
+						case "Log Level":
+							Logger.Threshold = LogLevelItem.SelectedItem;
+							Config.SetValue("Logging", "Level", Logger.Threshold.ToString());
+							Config.Save();
+							// Banner so the change is visible even after dropping to Error.
+							Logger.LogBanner($"Log level set to {Logger.Threshold}.");
+							break;
 						case "Exit":
 							MainMenu.Visible = false;
 							break;
@@ -766,6 +776,12 @@ namespace VehicleKeeper {
 			MainMenu.Add(BlipColorListItem);
 			BlipDistanceItem = new NativeListItem<float>("Blip Distance", -1f, 10f, 50f, 100f, 200f, 500f, 1000f, 2000f, 5000f, 10000f, 20000f);
 			MainMenu.Add(BlipDistanceItem);
+			// Info is the normal level; Debug adds the verbose per-tick diagnostics for
+			// bug reports; Error quiets everything but failures (banners still write).
+			LogLevelItem = new NativeListItem<LogLevel>("Log Level", LogLevel.Info, LogLevel.Debug, LogLevel.Error) {
+				Description = "Verbosity of VehicleKeeper.log. Select to apply."
+			};
+			MainMenu.Add(LogLevelItem);
 			NativeItem exitButton = new NativeItem("Exit");
 			MainMenu.Add(exitButton);
 
