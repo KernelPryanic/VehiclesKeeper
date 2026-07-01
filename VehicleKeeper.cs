@@ -224,13 +224,15 @@ namespace VehicleKeeper {
 					return;
 				}
 
-				if (Period == 30) {
-					UpdateBlips(player);
-				}
-
 				// "San Andreas" is the name the game returns for the open ocean / unnamed
 				// space, where a saved spawn point is useless — so drift is suppressed there.
+				// Computed once per tick and shared with UpdateBlips (which also needs it).
 				bool zoneBlocked = World.GetZoneDisplayName(player.Position) == "San Andreas";
+
+				if (Period == 30) {
+					UpdateBlips(player, zoneBlocked);
+				}
+
 				if (zoneBlocked != LastZoneBlocked) {
 					LastZoneBlocked = zoneBlocked;
 					Logger.Log(zoneBlocked
@@ -246,13 +248,7 @@ namespace VehicleKeeper {
 				}
 
 				if (Period == 60 && LastVehicle != null && !zoneBlocked) {
-					VehicleData vd = VehicleUtilities.CreateInfo(LastVehicle);
-					// Only persist drift for a vehicle that is still tracked. Without
-					// this, unsaving the car you are sitting in would be undone on the
-					// next tick (UpdateVehicleData re-adds it to the store).
-					if (SpawnedVehicles.Contains(vd)) {
-						UpdateVehicleData(LastVehicle, vd);
-					}
+					PersistDrift(LastVehicle);
 				}
 			} catch (Exception e) {
 				// A held entity may despawn between ticks and throw on access. Log
@@ -261,10 +257,12 @@ namespace VehicleKeeper {
 			}
 		}
 
-		void UpdateBlips(Ped player) {
-			// Iterate over a snapshot: DespawnVehicle mutates SpawnedVehicles, so
-			// walking the live list by index would skip entries after a removal.
-			foreach (VehicleData vd in SpawnedVehicles.ToList()) {
+		void UpdateBlips(Ped player, bool zoneBlocked) {
+			// Walk the list backwards: DespawnVehicle removes from SpawnedVehicles, and
+			// iterating by descending index means a removal never shifts an entry we
+			// have yet to visit — so no defensive snapshot copy is needed each tick.
+			for (int i = SpawnedVehicles.Count - 1; i >= 0; i--) {
+				VehicleData vd = SpawnedVehicles[i];
 				Vehicle v = (Vehicle)Entity.FromHandle(vd.Handle);
 				// A handle can be non-null yet point to a despawned entity; treat that
 				// as gone too, otherwise the .IsConsideredDestroyed/.Position access
@@ -277,8 +275,7 @@ namespace VehicleKeeper {
 					Logger.Log($"{vd.VehicleName} [{vd.LicensePlate.Trim()}] destroyed — dropping it.");
 					GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} is destroyed", false);
 					DespawnVehicle(v, vd);
-				} else if (player.IsInVehicle(v) &&
-					World.GetZoneDisplayName(player.Position) != "San Andreas") {
+				} else if (player.IsInVehicle(v) && !zoneBlocked) {
 					LastVehicle = player.CurrentVehicle;
 					// The latch keeps this Info line to the entry transition; the position
 					// writes it kicks off are the Debug-level spam.
@@ -378,16 +375,38 @@ namespace VehicleKeeper {
 					SpawnedVehicles.Add(vd);
 				}
 				XmlVehicleStorage.UpdateVehicle(vd);
-				// The per-tick drift write, with the position actually persisted — Debug
-				// because it's the one stream worth having when diagnosing bad/lost drift,
-				// and pure noise otherwise.
-				Logger.LogDebug($"Updated {vd.VehicleName} [{vd.LicensePlate.Trim()}] at {vd.Position}.");
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 				return false;
 			}
 
 			return true;
+		}
+
+		// The per-tick drift auto-save. Only position and rotation change while the
+		// player is driving, so this updates just those two on the already-captured
+		// data and rewrites the one small file — never the full CreateInfo capture
+		// (~100 natives + list builds + a SHA-256), which is the expensive part and
+		// is only needed on an explicit Save. Looks the tracked entry up by handle so
+		// no hash/CreateInfo is done just to find it.
+		void PersistDrift(Vehicle v) {
+			try {
+				VehicleData vd = SpawnedVehicles.Find(x => x.Handle == v.Handle);
+				// Not tracked (e.g. just unsaved the car we're sitting in): nothing to
+				// persist, and re-adding it here would resurrect the unsaved vehicle.
+				if (vd == null) {
+					return;
+				}
+
+				vd.Position = v.Position;
+				vd.Rotation = v.Rotation;
+				XmlVehicleStorage.UpdateVehicle(vd);
+				// The one Debug stream worth having when diagnosing lost/wrong drift;
+				// pure noise otherwise, so it stays below the default Info level.
+				Logger.LogDebug($"Drift {vd.VehicleName} [{vd.LicensePlate.Trim()}] -> {vd.Position}.");
+			} catch (Exception e) {
+				Logger.LogError(e.ToString());
+			}
 		}
 
 		bool DespawnVehicle(Vehicle v, VehicleData vd) {
@@ -442,7 +461,7 @@ namespace VehicleKeeper {
 			Logger.Log($"Spawn All: {savedVehicles.Count} saved vehicle(s).");
 
 			try {
-				for (int i = 0; i < savedVehicles.Count(); i++) {
+				for (int i = 0; i < savedVehicles.Count; i++) {
 					if (!SpawnedVehicles.Contains(savedVehicles[i])) {
 						SpawnVehicle(savedVehicles[i]);
 					} else {
@@ -493,8 +512,8 @@ namespace VehicleKeeper {
 					RebuildVehicleMenu();
 					GTA.UI.Notification.PostTicker($"Vehicle {currentVeh.DisplayName} {currentVeh.Mods.LicensePlate.Trim()} saved", false);
 				} else {
-					// Manual override is a discrete user action → Info (the shared
-					// UpdateVehicleData only logs at Debug, for the per-tick drift path).
+					// UpdateVehicleData is silent (it's shared with menu paths), so log
+					// the override here where we know it was a discrete user action.
 					Logger.Log($"Overrode saved {vd.VehicleName} [{vd.LicensePlate.Trim()}].");
 					UpdateVehicleData(currentVeh, vd);
 					GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} has been overridden", false);
