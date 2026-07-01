@@ -96,9 +96,10 @@ namespace VehicleKeeper {
 		public static void Log(object message) => Write(LogLevel.Info, message);
 		public static void LogError(object message) => Write(LogLevel.Error, message);
 
-		// Always written, ignoring Threshold — for once-per-session triage lines
-		// (version, resolved config) that must appear even at Error level.
-		public static void LogBanner(object message) => Write(LogLevel.Error, message, force: true);
+		// Logged at INFO but forced past Threshold — for once-per-session triage lines
+		// (version, resolved config) that must appear even when the level is raised to
+		// Error, without masquerading as errors.
+		public static void LogBanner(object message) => Write(LogLevel.Info, message, force: true);
 
 		static void Write(LogLevel level, object message, bool force = false) {
 			if (!force && level < Threshold) return;
