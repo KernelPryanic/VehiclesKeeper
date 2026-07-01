@@ -7,6 +7,9 @@ dist/
 *.dll
 *.log
 
+# The gta5-mods.com listing/changelog draft; kept local, not part of the mod.
+DESCRIPTION.html
+
 # Keep shared build tasks; ignore the per-user VS Code files.
 .vscode/*
 !.vscode/tasks.json
