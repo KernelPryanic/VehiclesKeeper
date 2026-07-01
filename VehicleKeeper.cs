@@ -71,11 +71,17 @@ namespace VehicleKeeper {
 		public static string For(string fileName) => Path.Combine(DataDirectory, fileName);
 	}
 
+	public enum LogLevel { Debug, Info, Error }
+
 	public static class Logger {
 		// Resolved on each use, not cached: ScriptPaths.Directory is finalized only
 		// after the Script constructor calls ScriptPaths.Init, which runs after this
 		// type is first touched. Caching here would freeze the pre-Init fallback path.
 		static string LogFilePath => ScriptPaths.For("VehicleKeeper.log");
+
+		// Lowest level that gets written. Info by default; the ini's [Logging] Level
+		// can drop it to Debug to include the per-tick/verbose diagnostics.
+		public static LogLevel Threshold { get; set; } = LogLevel.Info;
 
 		public static void ClearLog() {
 			try {
@@ -85,17 +91,18 @@ namespace VehicleKeeper {
 			}
 		}
 
-		public static void Log(object message) {
-			Write("INFO", message);
-		}
+		public static void LogDebug(object message) => Write(LogLevel.Debug, message);
+		public static void Log(object message) => Write(LogLevel.Info, message);
+		public static void LogError(object message) => Write(LogLevel.Error, message);
 
-		public static void LogError(object message) {
-			Write("ERROR", message);
-		}
+		// Always written, ignoring Threshold — for once-per-session triage lines
+		// (version, resolved config) that must appear even at Error level.
+		public static void LogBanner(object message) => Write(LogLevel.Error, message, force: true);
 
-		static void Write(string level, object message) {
+		static void Write(LogLevel level, object message, bool force = false) {
+			if (!force && level < Threshold) return;
 			try {
-				File.AppendAllText(LogFilePath, DateTime.Now + " [" + level + "] " + message + Environment.NewLine);
+				File.AppendAllText(LogFilePath, DateTime.Now + " [" + level.ToString().ToUpperInvariant() + "] " + message + Environment.NewLine);
 			} catch {
 				// Logging must never crash the script.
 			}
@@ -117,6 +124,11 @@ namespace VehicleKeeper {
 		readonly List<VehicleData> SpawnedVehicles = new List<VehicleData>();
 		Vehicle LastVehicle;
 
+		// Remember the last-logged drift target / zone-gate so the per-tick blip loop
+		// logs only the transitions at Info (rare) and never the steady state (spam).
+		int LastDriftLoggedHandle;
+		bool LastZoneBlocked;
+
 		BlipColor BlipColor = BlipColor.Blue;
 		float BlipDistance;
 
@@ -126,7 +138,7 @@ namespace VehicleKeeper {
 			ScriptPaths.Init(BaseDirectory);
 
 			Logger.ClearLog();
-			Logger.Log("VehicleKeeper started. Files dir: " + ScriptPaths.DataDirectory);
+			Logger.LogBanner($"{MenuVersion()} started. Files dir: {ScriptPaths.DataDirectory}");
 
 			MainMenuInit();
 
@@ -146,6 +158,7 @@ namespace VehicleKeeper {
 			SetConfigValueIfNotDefined("Configuration", "BlipColor", BlipColor.Blue);
 			SetConfigValueIfNotDefined("Configuration", "BlipDistance", 500f);
 			SetConfigValueIfNotDefined("Configuration", "VehiclePersistencePath", defaultPersistencePath);
+			SetConfigValueIfNotDefined("Logging", "Level", nameof(LogLevel.Info));
 
 			// Read configuration values
 			MenuKey = Config.GetValue("Configuration", "MenuKey", Keys.Shift | Keys.T);
@@ -156,10 +169,17 @@ namespace VehicleKeeper {
 			BlipDistance = Config.GetValue("Configuration", "BlipDistance", 500f);
 			BlipDistanceItem.SelectedItem = BlipDistanceItem.Items.First(x => x == BlipDistance);
 
+			// [Logging] Level gates the log file: Info (default) for normal operation,
+			// Debug to add the per-tick/verbose diagnostics when triaging an issue.
+			Logger.Threshold = ParseLogLevel(Config.GetValue("Logging", "Level", nameof(LogLevel.Info)));
+
 			string basePath = Config.GetValue("Configuration", "VehiclePersistencePath", defaultPersistencePath);
 			XmlVehicleStorage.Initialize(basePath);
 
-			// Clear existing blips from previously managed vehicles
+			// One-line config summary so every report shows the resolved settings.
+			// (The saved-vehicle count is logged by the storage layer as it loads.)
+			Logger.LogBanner($"Config: menuKey={MenuKey} saveKey={SaveKey} unsaveKey={UnsaveKey} blipColor={BlipColor} blipDistance={BlipDistance} logLevel={Logger.Threshold}.");
+
 			ClearExistingBlips();
 
 			Tick += OnTick;
@@ -208,9 +228,24 @@ namespace VehicleKeeper {
 					UpdateBlips(player);
 				}
 
-				if (Period == 60 && LastVehicle != null &&
-					World.GetZoneDisplayName(player.Position) != "San Andreas"
-				) {
+				// "San Andreas" is the name the game returns for the open ocean / unnamed
+				// space, where a saved spawn point is useless — so drift is suppressed there.
+				bool zoneBlocked = World.GetZoneDisplayName(player.Position) == "San Andreas";
+				if (zoneBlocked != LastZoneBlocked) {
+					LastZoneBlocked = zoneBlocked;
+					Logger.Log(zoneBlocked
+						? "Entered an unnamed zone — drift persistence paused here."
+						: "Entered a named zone — drift persistence resumed.");
+				}
+
+				// LastVehicle is cleared elsewhere on leave/despawn/unsave; releasing the
+				// latch here lets a later re-entry log its transition afresh.
+				if (LastVehicle == null && LastDriftLoggedHandle != 0) {
+					Logger.Log("Stopped drift tracking (no active saved vehicle).");
+					LastDriftLoggedHandle = 0;
+				}
+
+				if (Period == 60 && LastVehicle != null && !zoneBlocked) {
 					VehicleData vd = VehicleUtilities.CreateInfo(LastVehicle);
 					// Only persist drift for a vehicle that is still tracked. Without
 					// this, unsaving the car you are sitting in would be undone on the
@@ -235,14 +270,22 @@ namespace VehicleKeeper {
 				// as gone too, otherwise the .IsConsideredDestroyed/.Position access
 				// below throws and aborts the rest of the blip loop for this tick.
 				if (v == null || !v.Exists()) {
+					Logger.Log($"{vd.VehicleName} [{vd.LicensePlate.Trim()}] despawned by the game — dropping it.");
 					GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} is despawned", false);
 					DespawnVehicle(v, vd);
 				} else if (v.IsConsideredDestroyed) {
+					Logger.Log($"{vd.VehicleName} [{vd.LicensePlate.Trim()}] destroyed — dropping it.");
 					GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} is destroyed", false);
 					DespawnVehicle(v, vd);
 				} else if (player.IsInVehicle(v) &&
 					World.GetZoneDisplayName(player.Position) != "San Andreas") {
 					LastVehicle = player.CurrentVehicle;
+					// The latch keeps this Info line to the entry transition; the position
+					// writes it kicks off are the Debug-level spam.
+					if (LastDriftLoggedHandle != vd.Handle) {
+						LastDriftLoggedHandle = vd.Handle;
+						Logger.Log($"Now tracking {vd.VehicleName} [{vd.LicensePlate.Trim()}] for drift (entered).");
+					}
 					RemoveBlipFromVehicle(LastVehicle);
 				} else if (BlipDistance < 0f || v.Position.DistanceTo(player.Position) <= BlipDistance) {
 					// BlipDistance < 0 is the "always show" sentinel (the -1 menu option).
@@ -295,6 +338,7 @@ namespace VehicleKeeper {
 				v.IsPersistent = true;
 				SpawnedVehicles.Add(vd);
 				XmlVehicleStorage.SaveVehicle(vd);
+				Logger.Log($"Saved {vd.VehicleName} [{vd.LicensePlate.Trim()}].");
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 				return false;
@@ -316,6 +360,7 @@ namespace VehicleKeeper {
 				}
 				SpawnedVehicles.Remove(vd);
 				XmlVehicleStorage.RemoveVehicle(vd);
+				Logger.Log($"Unsaved {vd.VehicleName} [{vd.LicensePlate.Trim()}].");
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 				return false;
@@ -333,6 +378,10 @@ namespace VehicleKeeper {
 					SpawnedVehicles.Add(vd);
 				}
 				XmlVehicleStorage.UpdateVehicle(vd);
+				// The per-tick drift write, with the position actually persisted — Debug
+				// because it's the one stream worth having when diagnosing bad/lost drift,
+				// and pure noise otherwise.
+				Logger.LogDebug($"Updated {vd.VehicleName} [{vd.LicensePlate.Trim()}] at {vd.Position}.");
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 				return false;
@@ -350,6 +399,7 @@ namespace VehicleKeeper {
 					v.Delete();
 				}
 				SpawnedVehicles.Remove(vd);
+				Logger.Log($"Despawned {vd.VehicleName} [{vd.LicensePlate.Trim()}].");
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 				return false;
@@ -368,11 +418,13 @@ namespace VehicleKeeper {
 			}
 
 			if (vehicle == null) {
+				Logger.LogError($"Spawn failed for {vd.VehicleName} [{vd.LicensePlate.Trim()}] (model load or world limit?).");
 				return false;
 			}
 
 			SetBlipOnVehicle(vehicle);
 			SpawnedVehicles.Add(vd);
+			Logger.Log($"Spawned {vd.VehicleName} [{vd.LicensePlate.Trim()}]{(nearby ? " nearby" : "")}.");
 			return true;
 		}
 
@@ -384,6 +436,10 @@ namespace VehicleKeeper {
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 			}
+
+			// Bracket the batch so the log shows the trigger even if nothing spawns
+			// (empty store, or all already spawned); per-vehicle results follow.
+			Logger.Log($"Spawn All: {savedVehicles.Count} saved vehicle(s).");
 
 			try {
 				for (int i = 0; i < savedVehicles.Count(); i++) {
@@ -401,10 +457,12 @@ namespace VehicleKeeper {
 		void UnsaveVehicles() {
 			// Drain a snapshot of the saved list: UnsaveVehicle removes from the
 			// underlying store, so iterate a copy rather than the live list.
-			foreach (VehicleData saved in XmlVehicleStorage.GetVehicles().ToList()) {
+			List<VehicleData> saved = XmlVehicleStorage.GetVehicles().ToList();
+			Logger.Log($"Unsave All: {saved.Count} saved vehicle(s).");
+			foreach (VehicleData vehicle in saved) {
 				// If the vehicle is currently spawned, use its tracked instance so
 				// persistency and its blip are cleared correctly.
-				(Vehicle v, VehicleData vd) = GetSpawnedIfPossible(saved);
+				(Vehicle v, VehicleData vd) = GetSpawnedIfPossible(vehicle);
 				UnsaveVehicle(v, vd);
 			}
 
@@ -414,6 +472,7 @@ namespace VehicleKeeper {
 
 		void DespawnVehicles() {
 			// Snapshot: DespawnVehicle removes from SpawnedVehicles as it goes.
+			Logger.Log($"Despawn All: {SpawnedVehicles.Count} spawned vehicle(s).");
 			foreach (VehicleData vd in SpawnedVehicles.ToList()) {
 				Vehicle v = (Vehicle)Entity.FromHandle(vd.Handle);
 				DespawnVehicle(v, vd);
@@ -434,6 +493,9 @@ namespace VehicleKeeper {
 					RebuildVehicleMenu();
 					GTA.UI.Notification.PostTicker($"Vehicle {currentVeh.DisplayName} {currentVeh.Mods.LicensePlate.Trim()} saved", false);
 				} else {
+					// Manual override is a discrete user action → Info (the shared
+					// UpdateVehicleData only logs at Debug, for the per-tick drift path).
+					Logger.Log($"Overrode saved {vd.VehicleName} [{vd.LicensePlate.Trim()}].");
 					UpdateVehicleData(currentVeh, vd);
 					GTA.UI.Notification.PostTicker($"Vehicle {vd.VehicleName} {vd.LicensePlate.Trim()} has been overridden", false);
 				}
@@ -481,6 +543,7 @@ namespace VehicleKeeper {
 							BlipColor = BlipColorListItem.SelectedItem;
 							Config.SetValue("Configuration", "BlipColor", BlipColor);
 							Config.Save();
+							Logger.Log($"Blip color set to {BlipColor}.");
 							// Snapshot the list (GetSpawnedIfPossible touches no shared
 							// state here, but match the file's iterate-a-copy convention)
 							// and guard each handle with .Exists(): a despawned vehicle's
@@ -496,6 +559,9 @@ namespace VehicleKeeper {
 							BlipDistance = BlipDistanceItem.SelectedItem;
 							Config.SetValue("Configuration", "BlipDistance", BlipDistance);
 							Config.Save();
+							Logger.Log(BlipDistance < 0f
+								? "Blip distance set to always-show."
+								: $"Blip distance set to {BlipDistance}m.");
 							break;
 						case "Exit":
 							MainMenu.Visible = false;
@@ -578,6 +644,7 @@ namespace VehicleKeeper {
 						GTA.UI.Notification.PostTicker("You should leave the vehicle first as the spawn location is being overridden while you're in the car", false);
 					} else {
 						(v, vd) = GetSpawnedIfPossible(vd);
+						Logger.Log($"Set spawn location for {vd.VehicleName} [{vd.LicensePlate.Trim()}] to {waypoint} (waypoint).");
 						vd.Position = waypoint;
 						UnsaveVehicle(v, vd);
 						SaveVehicle(v, vd);
@@ -591,6 +658,11 @@ namespace VehicleKeeper {
 		// None in the INI (e.g. SaveKey=None) to free it up. A blank/unparseable
 		// value does NOT disable; it reverts to the default for that key.
 		static bool IsDisabled(Keys key) => key == Keys.None;
+
+		// Parse the [Logging] Level ini value (case-insensitive); anything unrecognized
+		// falls back to Info rather than silencing or spamming the log.
+		static LogLevel ParseLogLevel(string value) =>
+			Enum.TryParse(value, true, out LogLevel level) ? level : LogLevel.Info;
 
 		public void OnKeyDown(object sender, KeyEventArgs e) {
 			// Compare KeyData (key + active modifier flags) so a combo like Shift+T

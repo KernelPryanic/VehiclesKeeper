@@ -63,6 +63,7 @@ namespace VehicleKeeper {
 			}
 
 			Loaded = true;
+			Logger.Log($"Storage loaded {Cache.Count} vehicle(s) from {dir}.");
 		}
 
 		public static void SaveVehicle(VehicleData vd) {
