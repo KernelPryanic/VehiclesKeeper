@@ -130,6 +130,13 @@ namespace VehicleKeeper {
 		int LastDriftLoggedHandle;
 		bool LastZoneBlocked;
 
+		// Full re-capture (colors, damage, mods — everything, not just position) runs
+		// on a wall-clock interval while driving so appearance changes survive even if
+		// the player quits mid-drive without exiting. GameTime (ms) keeps the cadence
+		// frame-rate independent.
+		int LastFullCaptureTime;
+		const int FullCaptureIntervalMs = 10000;
+
 		BlipColor BlipColor = BlipColor.Blue;
 		float BlipDistance;
 
@@ -261,15 +268,31 @@ namespace VehicleKeeper {
 						: "Entered a named zone — drift persistence resumed.");
 				}
 
-				// LastVehicle is cleared elsewhere on leave/despawn/unsave; releasing the
-				// latch here lets a later re-entry log its transition afresh.
+				// Flush a full re-capture the moment the player leaves the tracked car,
+				// so appearance/damage changes made during the drive are saved at the
+				// point you'd notice them missing. Clearing LastVehicle also stops drift
+				// from persisting a car the player no longer occupies.
+				if (LastVehicle != null && !player.IsInVehicle(LastVehicle)) {
+					RecaptureVehicle(LastVehicle);
+					LastVehicle = null;
+				}
+
+				// Once LastVehicle is cleared (leave above, or despawn/unsave), release the
+				// log latch so a later re-entry logs its tracking transition afresh.
 				if (LastVehicle == null && LastDriftLoggedHandle != 0) {
 					Logger.Log("Stopped drift tracking (no active saved vehicle).");
 					LastDriftLoggedHandle = 0;
 				}
 
-				if (Period == 60 && LastVehicle != null && !zoneBlocked) {
-					PersistDrift(LastVehicle);
+				if (LastVehicle != null && !zoneBlocked) {
+					if (Period == 60) {
+						PersistDrift(LastVehicle);
+					}
+					// Full re-capture on a wall-clock interval so a mid-drive quit still
+					// keeps the latest appearance, not just position (drift's remit).
+					if (Game.GameTime - LastFullCaptureTime >= FullCaptureIntervalMs) {
+						RecaptureVehicle(LastVehicle);
+					}
 				}
 			} catch (Exception e) {
 				// A held entity may despawn between ticks and throw on access. Log
@@ -425,6 +448,33 @@ namespace VehicleKeeper {
 				// The one Debug stream worth having when diagnosing lost/wrong drift;
 				// pure noise otherwise, so it stays below the default Info level.
 				Logger.LogDebug($"Drift {vd.VehicleName} [{vd.LicensePlate.Trim()}] -> {vd.Position}.");
+			} catch (Exception e) {
+				Logger.LogError(e.ToString());
+			}
+		}
+
+		// Full state re-capture for a tracked vehicle: unlike PersistDrift (position
+		// only), this re-runs CreateInfo so paint, damage, mods and the rest are saved.
+		// Runs on the drive-time interval and on exit, never per tick. Swaps the fresh
+		// data into SpawnedVehicles so later lookups and drift see current values, and
+		// resets the interval timer regardless of path so the two triggers don't stack.
+		void RecaptureVehicle(Vehicle v) {
+			LastFullCaptureTime = Game.GameTime;
+			try {
+				if (v == null || !v.Exists()) {
+					return;
+				}
+				int index = SpawnedVehicles.FindIndex(x => x.Handle == v.Handle);
+				// Not tracked (e.g. just unsaved the car we're in): don't re-add it, that
+				// would resurrect an unsaved vehicle — mirrors PersistDrift's guard.
+				if (index < 0) {
+					return;
+				}
+
+				VehicleData vd = VehicleUtilities.CreateInfo(v);
+				SpawnedVehicles[index] = vd;
+				XmlVehicleStorage.UpdateVehicle(vd);
+				Logger.LogDebug($"Re-captured {vd.VehicleName} [{vd.LicensePlate.Trim()}].");
 			} catch (Exception e) {
 				Logger.LogError(e.ToString());
 			}
