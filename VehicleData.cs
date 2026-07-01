@@ -125,6 +125,17 @@ namespace VehicleKeeper {
 		// Coloring
 		public VehicleColor PrimaryColor { get; set; }
 		public VehicleColor SecondaryColor { get; set; }
+		// Mod-color paint per slot: the (paintType, colorIndex[, pearl]) triple from
+		// GET_VEHICLE_MOD_COLOR_1/_2, which carries finishes VehicleColor can't
+		// express (chrome, matte, worn, …). These are the game's mod-color numbers,
+		// a different space from VehicleColor — restore must feed back these exact
+		// values, not the enum. PaintType -1 means "not a mod color", so restore
+		// leaves the slot alone and the VehicleColor path fully governs it.
+		public int PrimaryPaintType { get; set; } = -1;
+		public int PrimaryPaintColor { get; set; } = -1;
+		public int PrimaryPaintPearl { get; set; } = -1;
+		public int SecondaryPaintType { get; set; } = -1;
+		public int SecondaryPaintColor { get; set; } = -1;
 		public VehicleColor DashboardColor { get; set; }
 		public VehicleColor PearlescentColor { get; set; }
 		public VehicleColor RimColor { get; set; }

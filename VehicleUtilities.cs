@@ -112,11 +112,33 @@ namespace VehicleKeeper {
 				IsSteamProof = vehicle.IsSteamProof,
 			};
 
-			// Radio
-			// if (Game.Player != null && Game.Player.Character.IsInVehicle()) {
-			//     VehicleData.RadioStation =  (RadioStation) Function.Call<int>(Hash.GET_PLAYER_RADIO_STATION_INDEX);
-			//     GTA.UI.Notification.Show(VehicleData.RadioStation.ToString());
-			// }
+			// Mod-color paint per slot (see VehicleData.PrimaryPaintType). The natives
+			// only populate the outputs when a mod color is set, so an unset slot leaves
+			// them holding garbage — validate the paint type into 0..7 and keep the
+			// captured values only then, else the field stays -1 ("leave alone").
+			try {
+				OutputArgument ptOut = new OutputArgument();
+				OutputArgument colOut = new OutputArgument();
+				OutputArgument pearlOut = new OutputArgument();
+				Function.Call(Hash.GET_VEHICLE_MOD_COLOR_1, vehicle, ptOut, colOut, pearlOut);
+				int pt = ptOut.GetResult<int>();
+				if (pt >= 0 && pt <= 7) {
+					VehicleData.PrimaryPaintType = pt;
+					VehicleData.PrimaryPaintColor = colOut.GetResult<int>();
+					VehicleData.PrimaryPaintPearl = pearlOut.GetResult<int>();
+				}
+
+				OutputArgument pt2Out = new OutputArgument();
+				OutputArgument col2Out = new OutputArgument();
+				Function.Call(Hash.GET_VEHICLE_MOD_COLOR_2, vehicle, pt2Out, col2Out);
+				int pt2 = pt2Out.GetResult<int>();
+				if (pt2 >= 0 && pt2 <= 7) {
+					VehicleData.SecondaryPaintType = pt2;
+					VehicleData.SecondaryPaintColor = col2Out.GetResult<int>();
+				}
+			} catch (Exception e) {
+				Logger.LogError(e.ToString());
+			}
 
 			// Other
 			if (Function.Call<bool>(Hash.IS_VEHICLE_ATTACHED_TO_TRAILER, vehicle)) {
@@ -413,6 +435,18 @@ namespace VehicleKeeper {
 			// to default. Primary/secondary use a different native and aren't affected.
 			vehicle.Mods.PearlescentColor = data.PearlescentColor;
 			vehicle.Mods.RimColor = data.RimColor;
+
+			// Mod-color paint per slot (chrome/matte/metallic/…), which the VehicleColor
+			// setters don't carry. Applied after the mods and the pearl/rim re-assert so
+			// nothing resets it. Feed back the EXACT captured (paintType, colorIndex,
+			// pearl) — the colorIndex is a mod-color number, not a VehicleColor. -1 type
+			// means "wasn't a mod color", so leave the slot to the VehicleColor path.
+			if (data.PrimaryPaintType >= 0) {
+				Function.Call(Hash.SET_VEHICLE_MOD_COLOR_1, vehicle, data.PrimaryPaintType, data.PrimaryPaintColor, data.PrimaryPaintPearl);
+			}
+			if (data.SecondaryPaintType >= 0) {
+				Function.Call(Hash.SET_VEHICLE_MOD_COLOR_2, vehicle, data.SecondaryPaintType, data.SecondaryPaintColor);
+			}
 
 			// Xenon color must follow the xenon toggle mod above. -1 is stock; only
 			// apply an explicit override so we don't force a color on stock xenons.
