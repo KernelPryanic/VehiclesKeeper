@@ -257,10 +257,17 @@ namespace VehicleKeeper {
 			// Location
 			vehicle.Rotation = data.Rotation;
 
-			// Coloring. Standard palette entries carry the finish (matte/metallic/
-			// pearlescent); a custom RGB paint flattens it. So apply the standard
-			// colors first, then override a slot with its custom RGB only when it
-			// was genuinely custom (else matte/metallic paints turn into flat colors).
+			// Coloring. ColorCombination goes FIRST: a preset index (>= 0) reapplies
+			// that preset's primary/secondary/pearlescent via SET_VEHICLE_COLOUR_
+			// COMBINATION, which would clobber individually-set colors if it ran after
+			// them. Applied first, the explicit colors below always win. (-1 means "no
+			// preset, custom colors"; the native ignores it, so it's harmless.)
+			vehicle.Mods.ColorCombination = data.ColorCombination;
+
+			// Standard palette entries carry the finish (matte/metallic/pearlescent);
+			// a custom RGB paint flattens it. So apply the standard colors first, then
+			// override a slot with its custom RGB only when it was genuinely custom
+			// (else matte/metallic paints turn into flat colors).
 			vehicle.Mods.PrimaryColor = data.PrimaryColor;
 			vehicle.Mods.SecondaryColor = data.SecondaryColor;
 			vehicle.Mods.DashboardColor = data.DashboardColor;
@@ -275,7 +282,6 @@ namespace VehicleKeeper {
 			}
 			vehicle.Mods.TireSmokeColor = data.TireSmokeColor;
 			vehicle.Mods.NeonLightsColor = data.NeonLightsColor;
-			vehicle.Mods.ColorCombination = data.ColorCombination;
 
 			// License plate
 			vehicle.Mods.LicensePlate = data.LicensePlate;
@@ -401,6 +407,12 @@ namespace VehicleKeeper {
 					Logger.LogError(e.ToString());
 				}
 			}
+
+			// Re-assert the extra-colours pair (pearlescent + rim) after the mods above:
+			// they share SET_VEHICLE_EXTRA_COLOURS, and applying mods can reset that pair
+			// to default. Primary/secondary use a different native and aren't affected.
+			vehicle.Mods.PearlescentColor = data.PearlescentColor;
+			vehicle.Mods.RimColor = data.RimColor;
 
 			// Xenon color must follow the xenon toggle mod above. -1 is stock; only
 			// apply an explicit override so we don't force a color on stock xenons.
