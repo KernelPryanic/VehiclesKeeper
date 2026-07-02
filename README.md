@@ -131,8 +131,8 @@ first, as the storage format may be incompatible.
   color.
 - **Visual body deformation (dents)** isn't preserved — only the body health value is, so
   a respawned car is straight even if it was dented.
-- **Radio station** isn't preserved (the game exposes no reliable per-vehicle read);
-  vehicles spawn with the radio off.
+- **Radio station** isn't preserved (the game exposes no reliable per-vehicle read); a
+  respawned vehicle keeps the game's default radio, which you can change as usual.
 - **Bumper break-off** isn't preserved.
 
 ## Credits

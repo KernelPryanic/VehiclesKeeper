@@ -333,10 +333,6 @@ namespace VehicleKeeper {
 			vehicle.IsUndriveable = false;
 			Function.Call(Hash.SET_VEHICLE_ENGINE_ON, vehicle, data.IsEngineRunning, true, true);
 
-			// Spawn with the radio off; the station isn't preserved (no reliable
-			// per-vehicle read), and silence is the predictable default.
-			Function.Call(Hash.SET_VEHICLE_RADIO_ENABLED, vehicle, false);
-
 			// Proofs
 			vehicle.IsBulletProof = data.IsBulletProof;
 			vehicle.CanTiresBurst = data.CanTiresBurst;
